@@ -13,7 +13,7 @@ use Spatie\QueryBuilder\QueryBuilder;
 class AgentLogController extends Controller
 {
 
-    public function index()
+    public function index(Request $request)
     {
         $this->authorize('agent.view');
 
@@ -31,7 +31,7 @@ class AgentLogController extends Controller
                 AllowedFilter::exact('agent_id'),
             ])
             ->defaultSort('-id')
-            ->allowedSorts('id', 'agent_id', 'log_level', 'created_at')
+            ->allowedSorts('id', 'agent_id', 'log_level', 'created_at', 'operation', 'entity_type')
             ->paginate($request->perPage ?? 10);
         return response()->json($query);
     }
