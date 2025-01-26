@@ -4,4 +4,4 @@
 use Illuminate\Support\Facades\Route;
 use Rconfig\VectorServer\Http\Controllers\AgentQueueController;
 
-Route::apiResource('agents-queues',  AgentQueueController::class)->only(['index', 'show']);
+Route::apiResource('agent-queues',  AgentQueueController::class)->only(['index', 'show']);
