@@ -2,12 +2,49 @@
 
 namespace  Rconfig\VectorServer\Http\Controllers;
 
+use App\Http\Controllers\Api\FilterMultipleFields;
 use App\Http\Controllers\Controller;
+use Illuminate\Http\Request;
 use Rconfig\VectorServer\Models\Agent;
 use Rconfig\VectorServer\Models\AgentQueue;
+use Spatie\QueryBuilder\AllowedFilter;
+use Spatie\QueryBuilder\QueryBuilder;
 
 class AgentQueueController extends Controller
 {
+
+    public function index(Request $request)
+    {
+        $this->authorize('agent.view');
+
+        $userRole = auth()->user()->roles()->first();
+
+        $searchCols = ['name', 'email'];
+        $query = QueryBuilder::for(AgentQueue::class)
+            ->allowedFilters([
+                // AllowedFilter::custom('q', new FilterMultipleFields, 'id, device_name, device_ip, device_model'),
+                // AllowedFilter::exact('category', 'category.id'),
+                // AllowedFilter::exact('vendor', 'vendor.id'),
+                // AllowedFilter::exact('tag', 'tag.id'),
+                // AllowedFilter::exact('agent', 'agent.id'),
+                AllowedFilter::exact('device_id'),
+                AllowedFilter::exact('agent_id'),
+                AllowedFilter::exact('processed'),
+            ])
+            ->defaultSort('-id')
+            ->allowedSorts('id', 'agent_id', 'device_id', 'processed')
+            ->paginate($request->perPage ?? 10);
+        return response()->json($query);
+    }
+
+    public function show($id)
+    {
+        $this->authorize('agent.view');
+
+        $agent = AgentQueue::findOrFail($id);
+        return response()->json($agent);
+    }
+
     public function get_unprocessed_jobs()
     {
         $agent = Agent::find(app('agent_id'));

@@ -67,6 +67,7 @@ class VectorServerServiceProvider extends ServiceProvider
         Route::prefix('api')->middleware('auth:api')->group(function () {
             $this->loadRoutesFrom(__DIR__ . '/../routes/agents.php');
             $this->loadRoutesFrom(__DIR__ . '/../routes/agentlog.php');
+            $this->loadRoutesFrom(__DIR__ . '/../routes/agentqueue.php');
         });
     }
 
