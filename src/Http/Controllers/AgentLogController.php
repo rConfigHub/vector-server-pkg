@@ -2,13 +2,47 @@
 
 namespace Rconfig\VectorServer\Http\Controllers;
 
+use App\Http\Controllers\Api\FilterMultipleFields;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Rconfig\VectorServer\Models\AgentLog;
+use Spatie\QueryBuilder\AllowedFilter;
+use Spatie\QueryBuilder\QueryBuilder;
 
 class AgentLogController extends Controller
 {
+
+    public function index()
+    {
+        $this->authorize('agent.view');
+
+        $userRole = auth()->user()->roles()->first();
+
+        $searchCols = ['name', 'email'];
+        $query = QueryBuilder::for(AgentLog::class)
+            ->allowedFilters([
+                // AllowedFilter::custom('q', new FilterMultipleFields, 'id, device_name, device_ip, device_model'),
+                // AllowedFilter::exact('category', 'category.id'),
+                // AllowedFilter::exact('vendor', 'vendor.id'),
+                // AllowedFilter::exact('tag', 'tag.id'),
+                // AllowedFilter::exact('agent', 'agent.id'),
+                AllowedFilter::exact('operation'),
+                AllowedFilter::exact('agent_id'),
+            ])
+            ->defaultSort('-id')
+            ->allowedSorts('id', 'agent_id', 'log_level', 'created_at')
+            ->paginate($request->perPage ?? 10);
+        return response()->json($query);
+    }
+
+    public function show($id)
+    {
+        $this->authorize('agent.view');
+
+        $agent = AgentLog::findOrFail($id);
+        return response()->json($agent);
+    }
 
     public function log_ingest(Request $request)
     {
