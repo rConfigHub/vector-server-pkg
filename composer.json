@@ -2,7 +2,7 @@
     "name": "rconfighub/vector-server-pkg",
     "description": "A package for managing data sync with rConfig Vector agents",
     "type": "library",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "require": {
         "php": ">=8.2",
         "illuminate/support": "^8.0|^9.0|^10.0|^11.0",
