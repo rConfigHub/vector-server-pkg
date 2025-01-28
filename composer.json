@@ -1,6 +1,6 @@
 {
     "name": "rconfighub/vector-server-pkg",
-    "description": "A package for managing data sync with rConfig Vector agents",
+    "description": "A package for managing data sync with rConfig Vector agent software",
     "type": "library",
     "version": "1.0.2",
     "require": {
