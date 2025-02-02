@@ -33,7 +33,7 @@ class QueueHandler
                     'device_id' => $device['id'],
                     'ip_address' => $device['device_ip'],
                     'connection_params' => $connection_params,
-                    'retry_attempt' => $yamlContents['connect']['retries'] ?? 5,
+                    'retry_attempt' => $yamlContents['connect']['retries'] ?? 1,
                 ]);
             }
         } catch (\Exception $e) {
