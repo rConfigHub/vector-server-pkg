@@ -60,11 +60,12 @@ class AgentQueueController extends Controller
 
         foreach ($jobs as $job) {
             // $job->connection_params = json_decode($job->connection_params, true); // hard coding the cast here because it's not working in the model
+            if ($job->retry_attempt === 0) {
+                $job->retry_failed = 1;
+                continue;
+            }
             if ($job->retry_attempt > 0) {
                 $job->retry_attempt--;
-                if ($job->retry_attempt === 0) {
-                    $job->retry_failed = 1;
-                }
                 $job->save();
             }
         }
