@@ -2,6 +2,7 @@
 
 namespace Rconfig\VectorServer\Http\Controllers;
 
+use App\Facades\VectorServer;
 use App\Http\Controllers\Api\FilterMultipleFields;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
@@ -19,6 +20,11 @@ class AgentLogController extends Controller
 
         $userRole = auth()->user()->roles()->first();
 
+        // add agent if VectorServer is enabled
+        if (VectorServer::isInstalled()) {
+            $relationships[] = 'agent';
+        }
+
         $searchCols = ['name', 'email'];
         $query = QueryBuilder::for(AgentLog::class)
             ->allowedFilters([
@@ -26,10 +32,11 @@ class AgentLogController extends Controller
                 // AllowedFilter::exact('category', 'category.id'),
                 // AllowedFilter::exact('vendor', 'vendor.id'),
                 // AllowedFilter::exact('tag', 'tag.id'),
-                // AllowedFilter::exact('agent', 'agent.id'),
+                AllowedFilter::exact('agent', 'agent.id'),
                 AllowedFilter::exact('operation'),
                 AllowedFilter::exact('agent_id'),
             ])
+            ->with($relationships)
             ->defaultSort('-id')
             ->allowedSorts('id', 'agent_id', 'log_level', 'created_at', 'operation', 'entity_type')
             ->paginate($request->perPage ?? 10);
