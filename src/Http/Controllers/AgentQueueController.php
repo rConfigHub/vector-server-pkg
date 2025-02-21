@@ -75,7 +75,7 @@ class AgentQueueController extends Controller
             return !$job->retry_failed;
         });
 
-        return response()->json($updatedJobs);
+        return response()->json(array_values($updatedJobs->toArray())); // Issue #9 fixed issue where get_unprocessed_jobs returns object sometimes
     }
 
     public function mark_as_processed($ulid)
