@@ -62,6 +62,7 @@ class AgentQueueController extends Controller
             // $job->connection_params = json_decode($job->connection_params, true); // hard coding the cast here because it's not working in the model
             if ($job->retry_attempt === 0) {
                 $job->retry_failed = 1;
+                $job->save();
                 continue;
             }
             if ($job->retry_attempt > 0) {
@@ -90,7 +91,9 @@ class AgentQueueController extends Controller
         $job->save();
 
         // obfuscate the connection params
-        $connectionParams = $job->connection_params; // should be an array
+        $connectionParams = $job->connection_params;
+
+        $connectionParams = json_decode($connectionParams, true);
         $connectionParams['password'] = '********';
         $connectionParams['enable_password'] = '********';
         // $connectionParams['private_key'] = '********';
