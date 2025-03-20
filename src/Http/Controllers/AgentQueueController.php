@@ -93,7 +93,7 @@ class AgentQueueController extends Controller
         // obfuscate the connection params
         $connectionParams = $job->connection_params;
 
-        $connectionParams = json_decode($connectionParams, true);
+        // $connectionParams = json_decode($connectionParams, true);
         $connectionParams['password'] = '********';
         $connectionParams['enable_password'] = '********';
         // $connectionParams['private_key'] = '********';
