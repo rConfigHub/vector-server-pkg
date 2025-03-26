@@ -86,8 +86,8 @@ To ensure proper version management and integration with Composer and GitHub, fo
      git tag -d v1.0.6 # Delete the incorrect tag locally
      git push origin :refs/tags/v1.0.6 # Delete the incorrect tag remotely
 
-     git tag -a v1.0.7 -m "Version v1.0.7" # Create the correct tag
-     git push origin v1.0.7 # Push the correct tag to the remote
+     git tag -a v1.0.9 -m "Version v1.0.9" # Create the correct tag
+     git push origin v1.0.9 # Push the correct tag to the remote
      ```
 
 5. **Clear Composer Cache**

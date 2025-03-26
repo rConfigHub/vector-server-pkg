@@ -13,7 +13,8 @@ use Rconfig\VectorServer\Traits\PublishesToRabbitMQ;
 
 class Agent extends Model
 {
-    use HasFactory, PublishesToRabbitMQ;
+    use HasFactory;
+    // use PublishesToRabbitMQ,; // disabled for now until we have a use case
 
     protected $guarded = [];
     protected $casts = [
