@@ -66,16 +66,16 @@ To ensure proper version management and integration with Composer and GitHub, fo
 
 2. **Update the Composer Version**
    - Open the `composer.json` file in the `rconfig/vector-server` repository.
-   - Update the `version` field to match the desired tag (e.g., `v1.0.8`).
+   - Update the `version` field to match the desired tag (e.g., `v1.0.9`).
      Example:
      ```json
-     "version": "v1.0.8",
+     "version": "v1.0.9",
      ```
    - Note: If managing versions via Git tags, it’s often better to omit the `version` field since Composer can infer the version from the tag.
 
 3. **Commit and Push Changes**
    ```bash
-   git commit -am "Update composer version to v1.0.3"
+   git commit -am "Update composer version to v1.0.9"
    git push  
    ```
 
