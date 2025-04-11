@@ -5,6 +5,7 @@ namespace Rconfig\VectorServer\Http\Controllers;
 use App\Facades\VectorServer;
 use App\Http\Controllers\Api\FilterMultipleFields;
 use App\Http\Controllers\Controller;
+use App\Traits\RespondsWithHttpStatus;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Rconfig\VectorServer\Models\AgentLog;
@@ -13,6 +14,8 @@ use Spatie\QueryBuilder\QueryBuilder;
 
 class AgentLogController extends Controller
 {
+
+    use RespondsWithHttpStatus;
 
     public function index(Request $request)
     {
@@ -79,5 +82,19 @@ class AgentLogController extends Controller
             Log::error('Error ingesting log: ' . $e->getMessage(), ['exception' => $e]);
             return response()->json(['error' => 'An error occurred while processing the log'], 500);
         }
+    }
+
+    public function deleteMany(Request $request)
+    {
+        $this->authorize('agent.delete');
+
+        $ids = $request->ids;
+        if (empty($ids)) {
+            return $this->failureResponse('No agent log ids provided', 422);
+        }
+
+        AgentLog::destroy($ids);
+
+        return $this->successResponse('Agent Logs deleted successfully!', ['ids' => $ids]);
     }
 }

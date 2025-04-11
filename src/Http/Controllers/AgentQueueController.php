@@ -103,4 +103,19 @@ class AgentQueueController extends Controller
 
         return response()->json(['success' => true]);
     }
+
+    public function deleteMany(Request $request)
+    {
+        $this->authorize('agent.delete');
+
+        $ids = $request->ids;
+
+        if (in_array(1, $ids)) {
+            return $this->failureResponse('Cannot delete the first agent log job', 422);
+        }
+
+        AgentQueue::whereIn('id', $ids)->delete();
+
+        return $this->successResponse('Agent Queue Jobs deleted successfully!', ['ids' => $ids]);
+    }
 }

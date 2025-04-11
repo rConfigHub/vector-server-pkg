@@ -100,6 +100,21 @@ class AgentController extends Controller
         return $this->successResponse('Agent deleted successfully!', ['id' => $model->id]);
     }
 
+    public function deleteMany(Request $request)
+    {
+        $this->authorize('agent.delete');
+
+        $ids = $request->ids;
+
+        if (in_array(1, $ids)) {
+            return $this->failureResponse('You cannot delete the Vector agent!', 422);
+        }
+
+        Agent::whereIn('id', $ids)->delete();
+
+        return $this->successResponse('Agents deleted successfully!');
+    }
+
     public function regenerateToken($id)
     {
         $this->authorize('agent.update');
