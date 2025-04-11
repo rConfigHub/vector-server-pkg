@@ -75,7 +75,7 @@ To ensure proper version management and integration with Composer and GitHub, fo
 
 3. **Commit and Push Changes**
    ```bash
-   git commit -am "Update composer version to v1.0.10"
+   git commit -am "Update composer version to v1.0.11"
    git push  
    ```
 
