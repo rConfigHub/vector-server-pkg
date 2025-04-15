@@ -5,7 +5,6 @@ namespace Rconfig\VectorServer\Http\Controllers;
 use App\Facades\VectorServer;
 use App\Http\Controllers\Api\FilterMultipleFields;
 use App\Http\Controllers\Controller;
-use App\Traits\RespondsWithHttpStatus;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Rconfig\VectorServer\Models\AgentLog;
@@ -14,8 +13,6 @@ use Spatie\QueryBuilder\QueryBuilder;
 
 class AgentLogController extends Controller
 {
-
-    use RespondsWithHttpStatus;
 
     public function index(Request $request)
     {
@@ -31,18 +28,15 @@ class AgentLogController extends Controller
         $searchCols = ['name', 'email'];
         $query = QueryBuilder::for(AgentLog::class)
             ->allowedFilters([
-                // AllowedFilter::custom('q', new FilterMultipleFields, 'id, device_name, device_ip, device_model'),
-                // AllowedFilter::exact('category', 'category.id'),
-                // AllowedFilter::exact('vendor', 'vendor.id'),
-                // AllowedFilter::exact('tag', 'tag.id'),
-                AllowedFilter::exact('agent', 'agent.id'),
-                AllowedFilter::exact('operation'),
+                AllowedFilter::custom('q', new FilterMultipleFields, 'message'),
                 AllowedFilter::exact('agent_id'),
+                AllowedFilter::exact('log_level'),
             ])
             ->with($relationships)
             ->defaultSort('-id')
             ->allowedSorts('id', 'agent_id', 'log_level', 'created_at', 'operation', 'entity_type')
             ->paginate($request->perPage ?? 10);
+
         return response()->json($query);
     }
 
@@ -90,11 +84,24 @@ class AgentLogController extends Controller
 
         $ids = $request->ids;
         if (empty($ids)) {
-            return $this->failureResponse('No agent log ids provided', 422);
+            return response()->json(['error' => 'No IDs provided'], 400);
         }
 
         AgentLog::destroy($ids);
 
-        return $this->successResponse('Agent Logs deleted successfully!', ['ids' => $ids]);
+        return response()->json(['success' => 'Agent Logs deleted successfully']);
+    }
+
+    public function purgeLogs($agentid = null)
+    {
+        $this->authorize('agent.delete');
+
+        if ($agentid) {
+            $logs = AgentLog::where('agent_id', $agentid)->delete();
+        } else {
+            $logs = AgentLog::truncate();
+        }
+
+        return response()->json(['success' => 'Agent Logs purged successfully']);
     }
 }
