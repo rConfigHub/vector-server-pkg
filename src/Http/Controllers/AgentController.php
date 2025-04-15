@@ -2,12 +2,14 @@
 
 namespace Rconfig\VectorServer\Http\Controllers;
 
+use App\Http\Controllers\Api\FilterMultipleFields;
 use App\Http\Controllers\Controller;
 use App\Traits\RespondsWithHttpStatus;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Rconfig\VectorServer\Http\Requests\StoreAgentRequest;
 use Rconfig\VectorServer\Models\Agent;
+use Spatie\QueryBuilder\AllowedFilter;
 use Spatie\QueryBuilder\QueryBuilder;
 
 class AgentController extends Controller
@@ -22,9 +24,13 @@ class AgentController extends Controller
 
         $searchCols = ['name', 'email'];
         $query = QueryBuilder::for(Agent::class)
-            ->allowedFilters($searchCols)
+            ->allowedFilters([
+                AllowedFilter::custom('q', new FilterMultipleFields, 'id, name, email, srcip'),
+                AllowedFilter::exact('status'),
+                AllowedFilter::exact('is_admin_enabled'),
+            ])
             ->defaultSort('-id')
-            ->allowedSorts('name', 'id', 'created_at')
+            ->allowedSorts('name', 'id', 'created_at', 'is_admin_enabled')
             ->allowedIncludes(['roles'])
             ->with('roles')
             ->filterByRole($userRole->id)
@@ -124,5 +130,27 @@ class AgentController extends Controller
         $model->save();
 
         return $this->successResponse('Token regenerated successfully!', ['id' => $model->api_token]);
+    }
+
+    public function enable($id)
+    {
+        $this->authorize('agent.update');
+
+        $model = Agent::findOrFail($id);
+        $model->is_admin_enabled = 1;
+        $model->save();
+
+        return $this->successResponse('Agent enabled successfully!', ['id' => $model->id]);
+    }
+
+    public function disable($id)
+    {
+        $this->authorize('agent.update');
+
+        $model = Agent::findOrFail($id);
+        $model->is_admin_enabled = 0;
+        $model->save();
+
+        return $this->successResponse('Agent disabled successfully!', ['id' => $model->id]);
     }
 }

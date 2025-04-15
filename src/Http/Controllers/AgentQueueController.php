@@ -22,11 +22,7 @@ class AgentQueueController extends Controller
         $searchCols = ['name', 'email'];
         $query = QueryBuilder::for(AgentQueue::class)
             ->allowedFilters([
-                // AllowedFilter::custom('q', new FilterMultipleFields, 'id, device_name, device_ip, device_model'),
-                // AllowedFilter::exact('category', 'category.id'),
-                // AllowedFilter::exact('vendor', 'vendor.id'),
-                // AllowedFilter::exact('tag', 'tag.id'),
-                // AllowedFilter::exact('agent', 'agent.id'),
+                AllowedFilter::custom('q', new FilterMultipleFields, 'device_id, ip_address'),
                 AllowedFilter::exact('device_id'),
                 AllowedFilter::exact('agent_id'),
                 AllowedFilter::exact('processed'),
@@ -91,7 +87,7 @@ class AgentQueueController extends Controller
         $job->save();
 
         // obfuscate the connection params
-        $connectionParams = $job->connection_params;
+        $connectionParams = json_decode($job->connection_params, true);
 
         // $connectionParams = json_decode($connectionParams, true);
         $connectionParams['password'] = '********';
@@ -111,11 +107,24 @@ class AgentQueueController extends Controller
         $ids = $request->ids;
 
         if (in_array(1, $ids)) {
-            return $this->failureResponse('Cannot delete the first agent log job', 422);
+            return response()->json(['error' => 'Cannot delete the first agent queue job'], 422);
         }
 
         AgentQueue::whereIn('id', $ids)->delete();
 
-        return $this->successResponse('Agent Queue Jobs deleted successfully!', ['ids' => $ids]);
+        return response()->json(['success' => 'Agent Queue Jobs deleted successfully']);
+    }
+
+    public function purgeQueues($agentid = null)
+    {
+        $this->authorize('agent.delete');
+
+        if ($agentid) {
+            $queue = AgentQueue::where('agent_id', $agentid)->delete();
+        } else {
+            $queue = AgentQueue::truncate();
+        }
+
+        return response()->json(['success' => 'Agent Queues purged successfully']);
     }
 }
