@@ -2,8 +2,8 @@
 
 namespace  Rconfig\VectorServer\Http\Controllers;
 
-use App\Http\Controllers\Api\FilterMultipleFields;
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\QueryFilters\QueryFilterMultipleFields;
 use Illuminate\Http\Request;
 use Rconfig\VectorServer\Models\Agent;
 use Rconfig\VectorServer\Models\AgentQueue;
@@ -22,7 +22,7 @@ class AgentQueueController extends Controller
         $searchCols = ['name', 'email'];
         $query = QueryBuilder::for(AgentQueue::class)
             ->allowedFilters([
-                AllowedFilter::custom('q', new FilterMultipleFields, 'device_id, ip_address'),
+                AllowedFilter::custom('q', new QueryFilterMultipleFields, 'device_id, ip_address'),
                 AllowedFilter::exact('device_id'),
                 AllowedFilter::exact('agent_id'),
                 AllowedFilter::exact('processed'),

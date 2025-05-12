@@ -2,8 +2,8 @@
 
 namespace Rconfig\VectorServer\Http\Controllers;
 
-use App\Http\Controllers\Api\FilterMultipleFields;
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\QueryFilters\QueryFilterMultipleFields;
 use App\Traits\RespondsWithHttpStatus;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -25,7 +25,7 @@ class AgentController extends Controller
         $searchCols = ['name', 'email'];
         $query = QueryBuilder::for(Agent::class)
             ->allowedFilters([
-                AllowedFilter::custom('q', new FilterMultipleFields, 'id, name, email, srcip'),
+                AllowedFilter::custom('q', new QueryFilterMultipleFields, 'id, name, email, srcip'),
                 AllowedFilter::exact('status'),
                 AllowedFilter::exact('is_admin_enabled'),
             ])

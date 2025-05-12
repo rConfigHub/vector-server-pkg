@@ -3,8 +3,8 @@
 namespace Rconfig\VectorServer\Http\Controllers;
 
 use App\Facades\VectorServer;
-use App\Http\Controllers\Api\FilterMultipleFields;
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\QueryFilters\QueryFilterMultipleFields;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Rconfig\VectorServer\Models\AgentLog;
@@ -28,7 +28,7 @@ class AgentLogController extends Controller
         $searchCols = ['name', 'email'];
         $query = QueryBuilder::for(AgentLog::class)
             ->allowedFilters([
-                AllowedFilter::custom('q', new FilterMultipleFields, 'message'),
+                AllowedFilter::custom('q', new QueryFilterMultipleFields, 'message'),
                 AllowedFilter::exact('agent_id'),
                 AllowedFilter::exact('log_level'),
             ])
