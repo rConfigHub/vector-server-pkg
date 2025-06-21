@@ -121,6 +121,19 @@ class AgentController extends Controller
         return $this->successResponse('Agents deleted successfully!');
     }
 
+    public function updateRoles(Request $request)
+    {
+        $this->authorize('snippet.update');
+
+        $model = $model = Agent::find($request->id);
+        $model->roles()->sync($request->roles);
+        if (! $model->roles()->find(1)) {
+            $model->roles()->attach([1]);
+        }
+
+        return $this->successResponse('Agent roles updated successfully!', ['id' => $model->id]);
+    }
+
     public function regenerateToken($id)
     {
         $this->authorize('agent.update');
