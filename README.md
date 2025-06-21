@@ -75,7 +75,7 @@ To ensure proper version management and integration with Composer and GitHub, fo
 
 3. **Commit and Push Changes**
    ```bash
-   git commit -am "Update composer version to v1.0.12"
+   git commit -am "Update composer version to v1.0.14"
    git push  
    ```
 
@@ -83,8 +83,8 @@ To ensure proper version management and integration with Composer and GitHub, fo
    - If the tag is incorrect or points to the wrong commit, fix it as follows:
      ```bash
      cd vector-server-pkg/
-     git tag -d v1.0.10 # Delete the incorrect tag locally
-     git push origin :refs/tags/v1.0.10 # Delete the incorrect tag remotely
+     git tag -d v1.0.13 # Delete the incorrect tag locally
+     git push origin :refs/tags/v1.0.13 # Delete the incorrect tag remotely
 
      git tag -a v1.0.11 -m "Version v1.0.11" # Create the correct tag
      git push origin v1.0.11 # Push the correct tag to the remote
