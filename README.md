@@ -64,6 +64,10 @@ To ensure proper version management and integration with Composer and GitHub, fo
    php artisan rconfig:clear-all
    ```
 
+2. ** Branch Change * 
+    Change to new branch.e., 1.0.16
+    publish it
+
 2. **Update the Composer Version**
    - Open the `composer.json` file in the `rconfig/vector-server` repository.
    - Update the `version` field to match the desired tag (e.g., `v1.0.10`).
@@ -83,11 +87,11 @@ To ensure proper version management and integration with Composer and GitHub, fo
    - If the tag is incorrect or points to the wrong commit, fix it as follows:
      ```bash
      cd ../vector-server-pkg
-     git tag -d v1.0.16 # Delete the incorrect tag locally
-     git push origin :refs/tags/v1.0.16 # Delete the incorrect tag remotely
+     git tag -d v1.0.15 # Delete the incorrect tag locally
+     git push origin :refs/tags/v1.0.15 # Delete the incorrect tag remotely
 
-     git tag -a v1.0.15 -m "Version v1.0.15" # Create the correct tag
-     git push origin v1.0.15 # Push the correct tag to the remote
+     git tag -a v1.0.16 -m "Version v1.0.16" # Create the correct tag
+     git push origin v1.0.16 # Push the correct tag to the remote
      ```
 
 5. **Clear Composer Cache**

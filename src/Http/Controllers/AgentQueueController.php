@@ -87,15 +87,24 @@ class AgentQueueController extends Controller
         $job->save();
 
         // obfuscate the connection params
-        $connectionParams = json_decode($job->connection_params, true);
+        // Check if connection_params is already an array (auto-cast) or a string
+        if (is_string($job->connection_params)) {
+            $connectionParams = json_decode($job->connection_params, true);
+        } else {
+            // It's already an array due to model casting
+            $connectionParams = $job->connection_params;
+        }
 
-        // $connectionParams = json_decode($connectionParams, true);
-        $connectionParams['password'] = '********';
-        $connectionParams['enable_password'] = '********';
-        // $connectionParams['private_key'] = '********';
-        // $connectionParams['private_key_passphrase'] = '********';
-        $job->connection_params = json_encode($connectionParams);
-        $job->save();
+        // Ensure we have an array to work with
+        if (is_array($connectionParams)) {
+            $connectionParams['password'] = '********';
+            $connectionParams['enable_password'] = '********';
+            // $connectionParams['private_key'] = '********';
+            // $connectionParams['private_key_passphrase'] = '********';
+
+            $job->connection_params = json_encode($connectionParams);
+            $job->save();
+        }
 
         return response()->json(['success' => true]);
     }
