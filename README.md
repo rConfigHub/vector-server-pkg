@@ -82,12 +82,12 @@ To ensure proper version management and integration with Composer and GitHub, fo
 4. **Tag the Correct Version**
    - If the tag is incorrect or points to the wrong commit, fix it as follows:
      ```bash
-     cd vector-server-pkg/
-     git tag -d v1.0.13 # Delete the incorrect tag locally
-     git push origin :refs/tags/v1.0.13 # Delete the incorrect tag remotely
+     cd ../vector-server-pkg
+     git tag -d v1.0.14 # Delete the incorrect tag locally
+     git push origin :refs/tags/v1.0.14 # Delete the incorrect tag remotely
 
-     git tag -a v1.0.11 -m "Version v1.0.11" # Create the correct tag
-     git push origin v1.0.11 # Push the correct tag to the remote
+     git tag -a v1.0.15 -m "Version v1.0.15" # Create the correct tag
+     git push origin v1.0.15 # Push the correct tag to the remote
      ```
 
 5. **Clear Composer Cache**
