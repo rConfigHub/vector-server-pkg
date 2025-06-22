@@ -1,124 +1,87 @@
-<!-- References:
-https://www.twilio.com/blog/get-started-docker-laravel
-https://laravel-for-newbie.kejyun.com/en/advanced/scheduling/docker/
-https://github.com/mohammadain/laravel-docker-cron/blob/master/Dockerfile 
-https://github.com/inttter/md-badges?tab=readme-ov-file#-programming-languages-->
+# Corrected Tagging and Version Management Workflow
 
-<!-- Improved compatibility of back to top link: See: https://github.com/othneildrew/Best-README-Template/pull/73 -->
+## Pre-requisites
+- Determine the next version number (e.g., v1.0.16)
+- Ensure all changes are ready for release
 
-<a name="readme-top"></a>
+## Step-by-Step Process
 
-<!-- PROJECT LOGO -->
-<br />
-<div align="center">
-  <a href="https://github.com/rconfig/rconfig">
-            <img src="https://www.rconfig.com/images/brand/logos/gradient_msp_logo.svg" alt="rConfig Logo" height="40" />
-  </a>
+### 1. Create and Switch to New Branch
+```bash
+ cd ../vector-server-pkg/
+git checkout -b release/v1.0.18
+```
 
-  <h3 align="center">rConfig Vector Server Package</h3>
+### 2. Make Your Changes
+- Implement all necessary code changes
+- Test thoroughly
 
-  <p align="center">
-Welcome to the rConfig Vector Server Package repository! This package is an add-on to rConfig V7 Professional for licensed rConfig MSP/Enterprise Edition customers. It is designed exclusively for those customers and is open-sourced for ease of access. Contributions are not permitted, and notes below are for internal developer purposes only.
-    <br />
-    <br />
-    <a href="https://v6docs.rconfig.com"><strong>Explore the docs »</strong></a>
-    <br />
-    <br />
-    <a href="#overview">Overview</a>
-    ·
-    <a href="#contributing">Contributing</a>
-    ·
-    <a href="#license">License</a>
-    ·
-    <a href="#support">Support</a>
-  </p>
+### 3. Update Composer Version
+- Open `composer.json` in the `rconfig/vector-server` repository
+- Update the `version` field:
+```json
+"version": "v1.0.18"
+```
+**Note:** Consider removing the version field entirely and let Composer infer from Git tags
 
-[![Tests](https://github.com/eliashaeussler/typo3-badges/actions/workflows/tests.yaml/badge.svg)](https://github.com/eliashaeussler/typo3-badges/actions/workflows/tests.yaml)
-[![Go](https://img.shields.io/badge/Go-%2300ADD8.svg?&logo=go&logoColor=white)](#)
+### 4. Commit Changes
+```bash
+git add .
+git commit -m "Prepare release v1.0.18"
+```
 
-</div>
+### 5. Merge to Main Branch
+```bash
+git checkout main
+git merge release/v1.0.16
+git push origin main
+```
 
-## Overview
+### 6. Create and Push Git Tag
+```bash
+git tag -a v1.0.16 -m "Release version v1.0.16"
+git push origin v1.0.16
+```
 
-The rConfig Vector Server Package is an integral part of the rConfig V7 Professional ecosystem, specifically tailored for licensed rConfig MSP/Enterprise Edition customers. This package provides advanced server-side functionalities and is open-sourced for accessibility while remaining strictly controlled for internal development. 
+### 7. Clear Composer Cache and Update
+```bash
+composer clear-cache
+composer update
+```
 
-Key highlights:
+### 8. Clear rConfig Cache
+```bash
+php artisan rconfig:clear-all
+```
 
-- Exclusively for rConfig MSP/Enterprise Edition customers.
-- Designed to integrate seamlessly with the rConfig build process.
-- Open-sourced for transparency and ease of deployment.
-- Contributions are not permitted to maintain the integrity and security of the package.
+### 9. Create GitHub Release
+- Go to GitHub repository
+- Create new release using the v1.0.16 tag
+- Add release notes describing changes
 
-## Testing
+### 10. Update Package Repository
+- Ensure package is updated in [Repman](https://app.repman.io/login)
+- Verify Packagist update if applicable
 
-All tests for the Vector Server Package are conducted as part of the rConfig V7 test suite with this package loaded.
+## If You Need to Fix an Incorrect Tag
 
-## Tagging and Pushing
+If you created the wrong tag or it points to the wrong commit:
 
-To ensure proper version management and integration with Composer and GitHub, follow these steps:
+```bash
+# Delete incorrect tag locally and remotely
+git tag -d v1.0.16
+git push origin :refs/tags/v1.0.16
 
-**Set a new branch && Make your changes **
+# Create correct tag on the right commit
+git checkout [correct-commit-hash]
+git tag -a v1.0.16 -m "Release version v1.0.16"
+git push origin v1.0.16
+```
 
-1. **Clear rConfig Cache**
-   ```bash
-   php artisan rconfig:clear-all
-   ```
+## Best Practices
 
-2. **Update the Composer Version**
-   - Open the `composer.json` file in the `rconfig/vector-server` repository.
-   - Update the `version` field to match the desired tag (e.g., `v1.0.10`).
-     Example:
-     ```json
-     "version": "v1.0.10",
-     ```
-   - Note: If managing versions via Git tags, it’s often better to omit the `version` field since Composer can infer the version from the tag.
-
-3. **Commit and Push Changes**
-   ```bash
-   git commit -am "Update composer version to v1.0.14"
-   git push  
-   ```
-
-4. **Tag the Correct Version**
-   - If the tag is incorrect or points to the wrong commit, fix it as follows:
-     ```bash
-     cd ../vector-server-pkg
-     git tag -d v1.0.14 # Delete the incorrect tag locally
-     git push origin :refs/tags/v1.0.14 # Delete the incorrect tag remotely
-
-     git tag -a v1.0.15 -m "Version v1.0.15" # Create the correct tag
-     git push origin v1.0.15 # Push the correct tag to the remote
-     ```
-
-5. **Clear Composer Cache**
-   ```bash
-   composer clear-cache
-   composer update
-   ```
-
-6. **Create a GitHub Release**
-   - Create a new release on GitHub with the correct tag and release notes.
-
-7. **Update Packagist**
-   - Ensure the package is updated in [Repman](https://app.repman.io/login) or Packagist as needed.
-
-## Contributing
-
-Contributions are not permitted for this package. For internal development notes, please refer to the internal developer WIKI.
-
-## License
-
-This project is licensed as part of the rConfig MSP and Enterprise License. See the LICENSE file for details.
-
-## Support
-
-For issues, questions, or feature requests, please use the [support.rconfig.com](https://support.rconfig.com) page. For enterprise support, contact us via [support@rconfig.com](mailto:support@rconfig.com).
-
-## Acknowledgments
-
-Thanks to all contributors and users who make rConfig a reliable solution for network configuration management.
-
----
-
-*This README is a living document and may be updated as the project evolves.*
-
+1. **Use semantic versioning** (MAJOR.MINOR.PATCH)
+2. **Test before tagging** - Run all tests in the rConfig V7 test suite
+3. **Consistent naming** - Use the same version number throughout the process
+4. **Clean git history** - Use meaningful commit messages
+5. **Document changes** - Include clear release notes in GitHub releases
