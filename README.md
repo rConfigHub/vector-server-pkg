@@ -20,14 +20,14 @@ git checkout -b release/v1.0.18
 - Open `composer.json` in the `rconfig/vector-server` repository
 - Update the `version` field:
 ```json
-"version": "v1.0.16"
+"version": "v1.0.18"
 ```
 **Note:** Consider removing the version field entirely and let Composer infer from Git tags
 
 ### 4. Commit Changes
 ```bash
 git add .
-git commit -m "Prepare release v1.0.16"
+git commit -m "Prepare release v1.0.18"
 ```
 
 ### 5. Merge to Main Branch
