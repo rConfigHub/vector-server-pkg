@@ -31,6 +31,9 @@ class AgentLogController extends Controller
                 AllowedFilter::custom('q', new QueryFilterMultipleFields, 'message'),
                 AllowedFilter::exact('agent_id'),
                 AllowedFilter::exact('log_level'),
+                AllowedFilter::callback('newer_than', function ($query, $value) {
+                    $query->where('id', '>', $value);
+                }),
             ])
             ->with($relationships)
             ->defaultSort('-id')
