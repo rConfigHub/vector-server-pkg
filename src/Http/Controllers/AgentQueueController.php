@@ -26,6 +26,9 @@ class AgentQueueController extends Controller
                 AllowedFilter::exact('device_id'),
                 AllowedFilter::exact('agent_id'),
                 AllowedFilter::exact('processed'),
+                AllowedFilter::callback('newer_than', function ($query, $value) {
+                    $query->where('id', '>', $value);
+                }),
             ])
             ->defaultSort('-id')
             ->allowedSorts('id', 'agent_id', 'device_id', 'processed')
@@ -107,6 +110,36 @@ class AgentQueueController extends Controller
         }
 
         return response()->json(['success' => true]);
+    }
+
+    public function get_unprocessed(Request $request)
+    {
+        $this->authorize('agent.view');
+
+        // Get IDs from request body
+        $ids = $request->input('ids', []);
+
+        if (empty($ids) || !is_array($ids)) {
+            return response()->json(['data' => []]);
+        }
+
+        // Clean and validate IDs
+        $ids = array_filter(array_map('intval', $ids));
+
+        if (empty($ids)) {
+            return response()->json(['data' => []]);
+        }
+
+        $query = QueryBuilder::for(AgentQueue::class)
+            ->whereIn('id', $ids)
+            ->allowedFilters([
+                AllowedFilter::exact('agent_id'),
+                AllowedFilter::exact('device_id'),
+            ])
+            ->defaultSort('-id')
+            ->get(); // Use get() instead of paginate() since we're checking specific items
+
+        return response()->json(['data' => $query]);
     }
 
     public function deleteMany(Request $request)
