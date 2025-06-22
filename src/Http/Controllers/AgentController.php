@@ -22,7 +22,7 @@ class AgentController extends Controller
 
         $userRole = auth()->user()->roles()->first();
 
-        $searchCols = ['name', 'email'];
+        $relationships = ['roles', 'devicesLimited'];
         $query = QueryBuilder::for(Agent::class)
             ->allowedFilters([
                 AllowedFilter::custom('q', new QueryFilterMultipleFields, 'id, name, email, srcip'),
@@ -31,8 +31,8 @@ class AgentController extends Controller
             ])
             ->defaultSort('-id')
             ->allowedSorts('name', 'id', 'created_at', 'is_admin_enabled')
-            ->allowedIncludes(['roles'])
-            ->with('roles')
+            ->allowedIncludes($relationships)
+            ->with('roles', 'devicesLimited')
             ->filterByRole($userRole->id)
             ->paginate($request->perPage ?? 10);
         return response()->json($query);

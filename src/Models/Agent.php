@@ -49,4 +49,9 @@ class Agent extends Model
     {
         return $this->hasMany(Device::class);
     }
+
+    public function devicesLimited()
+    {
+        return $this->hasMany(Device::class)->select('id', 'device_name', 'device_ip',  'agent_id'); // view_url comes back automatically
+    }
 }
