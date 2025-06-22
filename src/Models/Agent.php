@@ -2,16 +2,19 @@
 
 namespace Rconfig\VectorServer\Models;
 
+use App\Jobs\PublishToRabbitMQJob;
 use App\Models\Device;
 use App\Models\Role;
 use Database\Factories\AgentFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Rconfig\VectorServer\Models\User;
+use Rconfig\VectorServer\Traits\PublishesToRabbitMQ;
 
 class Agent extends Model
 {
     use HasFactory;
+    // use PublishesToRabbitMQ,; // disabled for now until we have a use case
 
     protected $guarded = [];
     protected $casts = [
@@ -45,5 +48,10 @@ class Agent extends Model
     public function devices()
     {
         return $this->hasMany(Device::class);
+    }
+
+    public function devicesLimited()
+    {
+        return $this->hasMany(Device::class)->select('id', 'device_name', 'device_ip',  'agent_id'); // view_url comes back automatically
     }
 }

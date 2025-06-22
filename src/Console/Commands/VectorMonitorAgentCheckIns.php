@@ -38,7 +38,6 @@ class VectorMonitorAgentCheckIns extends Command
             ->where('id', '>', 1) // Only agents with an ID greater than 1 (not the default agent)
             ->get();
 
-
         foreach ($agents as $agent) {
             // Increment the missed check-ins
             $agent->missed_checkins++;

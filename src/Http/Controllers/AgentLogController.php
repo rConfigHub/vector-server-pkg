@@ -2,8 +2,9 @@
 
 namespace Rconfig\VectorServer\Http\Controllers;
 
-use App\Http\Controllers\Api\FilterMultipleFields;
+use App\Facades\VectorServer;
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\QueryFilters\QueryFilterMultipleFields;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Rconfig\VectorServer\Models\AgentLog;
@@ -19,20 +20,26 @@ class AgentLogController extends Controller
 
         $userRole = auth()->user()->roles()->first();
 
+        // add agent if VectorServer is enabled
+        if (VectorServer::isInstalled()) {
+            $relationships[] = 'agent';
+        }
+
         $searchCols = ['name', 'email'];
         $query = QueryBuilder::for(AgentLog::class)
             ->allowedFilters([
-                // AllowedFilter::custom('q', new FilterMultipleFields, 'id, device_name, device_ip, device_model'),
-                // AllowedFilter::exact('category', 'category.id'),
-                // AllowedFilter::exact('vendor', 'vendor.id'),
-                // AllowedFilter::exact('tag', 'tag.id'),
-                // AllowedFilter::exact('agent', 'agent.id'),
-                AllowedFilter::exact('operation'),
+                AllowedFilter::custom('q', new QueryFilterMultipleFields, 'message'),
                 AllowedFilter::exact('agent_id'),
+                AllowedFilter::exact('log_level'),
+                AllowedFilter::callback('newer_than', function ($query, $value) {
+                    $query->where('id', '>', $value);
+                }),
             ])
+            ->with($relationships)
             ->defaultSort('-id')
             ->allowedSorts('id', 'agent_id', 'log_level', 'created_at', 'operation', 'entity_type')
             ->paginate($request->perPage ?? 10);
+
         return response()->json($query);
     }
 
@@ -72,5 +79,32 @@ class AgentLogController extends Controller
             Log::error('Error ingesting log: ' . $e->getMessage(), ['exception' => $e]);
             return response()->json(['error' => 'An error occurred while processing the log'], 500);
         }
+    }
+
+    public function deleteMany(Request $request)
+    {
+        $this->authorize('agent.delete');
+
+        $ids = $request->ids;
+        if (empty($ids)) {
+            return response()->json(['error' => 'No IDs provided'], 400);
+        }
+
+        AgentLog::destroy($ids);
+
+        return response()->json(['success' => 'Agent Logs deleted successfully']);
+    }
+
+    public function purgeLogs($agentid = null)
+    {
+        $this->authorize('agent.delete');
+
+        if ($agentid) {
+            $logs = AgentLog::where('agent_id', $agentid)->delete();
+        } else {
+            $logs = AgentLog::truncate();
+        }
+
+        return response()->json(['success' => 'Agent Logs purged successfully']);
     }
 }

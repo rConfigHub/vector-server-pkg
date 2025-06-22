@@ -3,11 +3,13 @@
 namespace Rconfig\VectorServer\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\QueryFilters\QueryFilterMultipleFields;
 use App\Traits\RespondsWithHttpStatus;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Rconfig\VectorServer\Http\Requests\StoreAgentRequest;
 use Rconfig\VectorServer\Models\Agent;
+use Spatie\QueryBuilder\AllowedFilter;
 use Spatie\QueryBuilder\QueryBuilder;
 
 class AgentController extends Controller
@@ -20,13 +22,17 @@ class AgentController extends Controller
 
         $userRole = auth()->user()->roles()->first();
 
-        $searchCols = ['name', 'email'];
+        $relationships = ['roles', 'devicesLimited'];
         $query = QueryBuilder::for(Agent::class)
-            ->allowedFilters($searchCols)
+            ->allowedFilters([
+                AllowedFilter::custom('q', new QueryFilterMultipleFields, 'id, name, email, srcip'),
+                AllowedFilter::exact('status'),
+                AllowedFilter::exact('is_admin_enabled'),
+            ])
             ->defaultSort('-id')
-            ->allowedSorts('name', 'id', 'created_at')
-            ->allowedIncludes(['roles'])
-            ->with('roles')
+            ->allowedSorts('name', 'id', 'created_at', 'is_admin_enabled')
+            ->allowedIncludes($relationships)
+            ->with('roles', 'devicesLimited')
             ->filterByRole($userRole->id)
             ->paginate($request->perPage ?? 10);
         return response()->json($query);
@@ -100,6 +106,34 @@ class AgentController extends Controller
         return $this->successResponse('Agent deleted successfully!', ['id' => $model->id]);
     }
 
+    public function deleteMany(Request $request)
+    {
+        $this->authorize('agent.delete');
+
+        $ids = $request->ids;
+
+        if (in_array(1, $ids)) {
+            return $this->failureResponse('You cannot delete the Vector agent!', 422);
+        }
+
+        Agent::whereIn('id', $ids)->delete();
+
+        return $this->successResponse('Agents deleted successfully!');
+    }
+
+    public function updateRoles(Request $request)
+    {
+        $this->authorize('snippet.update');
+
+        $model = $model = Agent::find($request->id);
+        $model->roles()->sync($request->roles);
+        if (! $model->roles()->find(1)) {
+            $model->roles()->attach([1]);
+        }
+
+        return $this->successResponse('Agent roles updated successfully!', ['id' => $model->id]);
+    }
+
     public function regenerateToken($id)
     {
         $this->authorize('agent.update');
@@ -109,5 +143,27 @@ class AgentController extends Controller
         $model->save();
 
         return $this->successResponse('Token regenerated successfully!', ['id' => $model->api_token]);
+    }
+
+    public function enable($id)
+    {
+        $this->authorize('agent.update');
+
+        $model = Agent::findOrFail($id);
+        $model->is_admin_enabled = 1;
+        $model->save();
+
+        return $this->successResponse('Agent enabled successfully!', ['id' => $model->id]);
+    }
+
+    public function disable($id)
+    {
+        $this->authorize('agent.update');
+
+        $model = Agent::findOrFail($id);
+        $model->is_admin_enabled = 0;
+        $model->save();
+
+        return $this->successResponse('Agent disabled successfully!', ['id' => $model->id]);
     }
 }

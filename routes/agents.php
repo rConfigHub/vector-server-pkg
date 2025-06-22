@@ -9,3 +9,6 @@ Route::post('agents/{id}/regenerate-api-token', [AgentController::class, 'regene
 Route::get('agents/active',  [AgentController::class, 'getActiveAgent']);
 Route::get('agents/latest', [AgentController::class, 'getLatestAgents']);
 Route::middleware(['agent.attach.id'])->apiResource('agents',  AgentController::class);
+Route::post('/agents/delete-many', [AgentController::class, 'deleteMany']);
+Route::post('/agents/{id}/enable', [AgentController::class, 'enable']);
+Route::post('/agents/{id}/disable', [AgentController::class, 'disable']);

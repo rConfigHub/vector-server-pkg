@@ -57,6 +57,8 @@ All tests for the Vector Server Package are conducted as part of the rConfig V7 
 
 To ensure proper version management and integration with Composer and GitHub, follow these steps:
 
+**Set a new branch && Make your changes **
+
 1. **Clear rConfig Cache**
    ```bash
    php artisan rconfig:clear-all
@@ -64,27 +66,28 @@ To ensure proper version management and integration with Composer and GitHub, fo
 
 2. **Update the Composer Version**
    - Open the `composer.json` file in the `rconfig/vector-server` repository.
-   - Update the `version` field to match the desired tag (e.g., `v1.0.3`).
+   - Update the `version` field to match the desired tag (e.g., `v1.0.10`).
      Example:
      ```json
-     "version": "v1.0.3",
+     "version": "v1.0.10",
      ```
    - Note: If managing versions via Git tags, it’s often better to omit the `version` field since Composer can infer the version from the tag.
 
 3. **Commit and Push Changes**
    ```bash
-   git commit -am "Update composer version to v1.0.3"
-   git push origin main
+   git commit -am "Update composer version to v1.0.14"
+   git push  
    ```
 
 4. **Tag the Correct Version**
    - If the tag is incorrect or points to the wrong commit, fix it as follows:
      ```bash
-     git tag -d v1.0.3 # Delete the incorrect tag locally
-     git push origin :refs/tags/v1.0.3 # Delete the incorrect tag remotely
+     cd ../vector-server-pkg
+     git tag -d v1.0.14 # Delete the incorrect tag locally
+     git push origin :refs/tags/v1.0.14 # Delete the incorrect tag remotely
 
-     git tag -a v1.0.3 -m "Version v1.0.3" # Create the correct tag
-     git push origin v1.0.3 # Push the correct tag to the remote
+     git tag -a v1.0.15 -m "Version v1.0.15" # Create the correct tag
+     git push origin v1.0.15 # Push the correct tag to the remote
      ```
 
 5. **Clear Composer Cache**

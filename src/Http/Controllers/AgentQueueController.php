@@ -2,8 +2,8 @@
 
 namespace  Rconfig\VectorServer\Http\Controllers;
 
-use App\Http\Controllers\Api\FilterMultipleFields;
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\QueryFilters\QueryFilterMultipleFields;
 use Illuminate\Http\Request;
 use Rconfig\VectorServer\Models\Agent;
 use Rconfig\VectorServer\Models\AgentQueue;
@@ -22,11 +22,7 @@ class AgentQueueController extends Controller
         $searchCols = ['name', 'email'];
         $query = QueryBuilder::for(AgentQueue::class)
             ->allowedFilters([
-                // AllowedFilter::custom('q', new FilterMultipleFields, 'id, device_name, device_ip, device_model'),
-                // AllowedFilter::exact('category', 'category.id'),
-                // AllowedFilter::exact('vendor', 'vendor.id'),
-                // AllowedFilter::exact('tag', 'tag.id'),
-                // AllowedFilter::exact('agent', 'agent.id'),
+                AllowedFilter::custom('q', new QueryFilterMultipleFields, 'device_id, ip_address'),
                 AllowedFilter::exact('device_id'),
                 AllowedFilter::exact('agent_id'),
                 AllowedFilter::exact('processed'),
@@ -62,6 +58,7 @@ class AgentQueueController extends Controller
             // $job->connection_params = json_decode($job->connection_params, true); // hard coding the cast here because it's not working in the model
             if ($job->retry_attempt === 0) {
                 $job->retry_failed = 1;
+                $job->save();
                 continue;
             }
             if ($job->retry_attempt > 0) {
@@ -75,7 +72,7 @@ class AgentQueueController extends Controller
             return !$job->retry_failed;
         });
 
-        return response()->json($updatedJobs);
+        return response()->json(array_values($updatedJobs->toArray())); // Issue #9 fixed issue where get_unprocessed_jobs returns object sometimes
     }
 
     public function mark_as_processed($ulid)
@@ -90,7 +87,9 @@ class AgentQueueController extends Controller
         $job->save();
 
         // obfuscate the connection params
-        $connectionParams = $job->connection_params; // should be an array
+        $connectionParams = json_decode($job->connection_params, true);
+
+        // $connectionParams = json_decode($connectionParams, true);
         $connectionParams['password'] = '********';
         $connectionParams['enable_password'] = '********';
         // $connectionParams['private_key'] = '********';
@@ -99,5 +98,33 @@ class AgentQueueController extends Controller
         $job->save();
 
         return response()->json(['success' => true]);
+    }
+
+    public function deleteMany(Request $request)
+    {
+        $this->authorize('agent.delete');
+
+        $ids = $request->ids;
+
+        if (in_array(1, $ids)) {
+            return response()->json(['error' => 'Cannot delete the first agent queue job'], 422);
+        }
+
+        AgentQueue::whereIn('id', $ids)->delete();
+
+        return response()->json(['success' => 'Agent Queue Jobs deleted successfully']);
+    }
+
+    public function purgeQueues($agentid = null)
+    {
+        $this->authorize('agent.delete');
+
+        if ($agentid) {
+            $queue = AgentQueue::where('agent_id', $agentid)->delete();
+        } else {
+            $queue = AgentQueue::truncate();
+        }
+
+        return response()->json(['success' => 'Agent Queues purged successfully']);
     }
 }
