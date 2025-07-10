@@ -10,6 +10,7 @@ use Illuminate\Support\ServiceProvider;
 use Rconfig\VectorServer\Console\Commands\VectorMonitorAgentCheckIns;
 use Rconfig\VectorServer\Http\Middleware\AgentAttachId;
 use Rconfig\VectorServer\Http\Middleware\AgentCheckApiSyncAccess;
+use Rconfig\VectorServer\Http\Middleware\AgentEnforceHttps;
 use Rconfig\VectorServer\Services\AgentQueue\QueueHandler;
 
 class VectorServerServiceProvider extends ServiceProvider
@@ -58,7 +59,7 @@ class VectorServerServiceProvider extends ServiceProvider
         }
 
         Route::group([
-            'middleware' =>  ['agent.check.api.sync.access', 'cors'],
+            'middleware' =>  ['agent.enforce.https', 'agent.check.api.sync.access', 'cors'],
         ], function () {
             $this->loadRoutesFrom(__DIR__ . '/../routes/api_agentsync.php');
         });
@@ -73,8 +74,11 @@ class VectorServerServiceProvider extends ServiceProvider
 
     protected function loadMiddleware()
     {
-        $this->app['router']->aliasMiddleware('agent.attach.id', AgentAttachId::class);
-        $this->app['router']->aliasMiddleware('agent.check.api.sync.access', AgentCheckApiSyncAccess::class);
+        $router = $this->app['router'];
+
+        $router->aliasMiddleware('agent.enforce.https', AgentEnforceHttps::class);
+        $router->aliasMiddleware('agent.attach.id', AgentAttachId::class);
+        $router->aliasMiddleware('agent.check.api.sync.access', AgentCheckApiSyncAccess::class);
     }
 
     protected function registerCommands()
