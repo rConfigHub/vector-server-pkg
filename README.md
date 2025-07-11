@@ -9,7 +9,7 @@
 ### 1. Create and Switch to New Branch
 ```bash
  cd ../vector-server-pkg/
-git checkout -b release/v1.0.18
+git checkout -b release/v1.0.20
 ```
 
 ### 2. Make Your Changes
@@ -27,7 +27,7 @@ git checkout -b release/v1.0.18
 ### 4. Commit Changes
 ```bash
 git add .
-git commit -m "Prepare release v1.0.19"
+git commit -m "Prepare release v1.0.20"
 ```
 
 ### 5. Merge to Main Branch
