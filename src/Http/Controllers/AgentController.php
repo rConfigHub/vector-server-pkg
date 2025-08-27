@@ -6,9 +6,12 @@ use App\Http\Controllers\Controller;
 use App\Http\Controllers\QueryFilters\QueryFilterMultipleFields;
 use App\Traits\RespondsWithHttpStatus;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Rconfig\VectorServer\Http\Requests\StoreAgentRequest;
+use Rconfig\VectorServer\Jobs\UpdateAgentDevicesStatusJob;
 use Rconfig\VectorServer\Models\Agent;
+use Rconfig\VectorServer\Models\AgentLog;
 use Spatie\QueryBuilder\AllowedFilter;
 use Spatie\QueryBuilder\QueryBuilder;
 
@@ -150,10 +153,49 @@ class AgentController extends Controller
         $this->authorize('agent.update');
 
         $model = Agent::findOrFail($id);
-        $model->is_admin_enabled = 1;
-        $model->save();
 
-        return $this->successResponse('Agent enabled successfully!', ['id' => $model->id]);
+        DB::transaction(function () use ($model) {
+            // Enable the agent
+            $model->is_admin_enabled = 1;
+
+            // Reset the agent's state for a fresh start
+            $model->status = Agent::STATUS_HEALTHY;
+            $model->missed_checkins = 0; // Reset missed checkins
+            $model->next_scheduled_checkin_at = now()->addSeconds($model->checkin_interval); // Schedule next check-in
+
+            $model->save();
+
+            // Log the enable action
+            AgentLog::create([
+                'agent_id' => $model->id,
+                'executed_at' => now(),
+                'log_level' => 'INFO',
+                'message' => "Agent {$model->name} administratively ENABLED and reset",
+                'operation' => 'admin_enable',
+                'context_data' => json_encode([
+                    'reset_missed_checkins' => true,
+                    'reset_status' => 'healthy',
+                    'next_checkin_scheduled' => $model->next_scheduled_checkin_at
+                ]),
+                'entity_type' => 'AgentController',
+                'entity_id' => $model->id,
+            ]);
+
+            // If agent has devices, trigger recovery of their statuses
+            if ($model->devices()->count() > 0) {
+                dispatch(new UpdateAgentDevicesStatusJob(
+                    $model->id,
+                    1, // Healthy status
+                    'Agent administratively enabled'
+                ))->onQueue('rConfigDefault');
+            }
+        });
+
+        return $this->successResponse('Agent enabled successfully and reset!', [
+            'id' => $model->id,
+            'status' => 'healthy',
+            'next_checkin' => $model->next_scheduled_checkin_at
+        ]);
     }
 
     public function disable($id)
@@ -161,9 +203,46 @@ class AgentController extends Controller
         $this->authorize('agent.update');
 
         $model = Agent::findOrFail($id);
-        $model->is_admin_enabled = 0;
-        $model->save();
 
-        return $this->successResponse('Agent disabled successfully!', ['id' => $model->id]);
+        DB::transaction(function () use ($model) {
+            $wasHealthy = $model->status == 1;
+
+            // Disable the agent
+            $model->is_admin_enabled = 0;
+
+            // Set status to indicate disabled state (you might want a specific status code for this)
+            $model->status = Agent::STATUS_DISABLED;
+
+            $model->save();
+
+            // Log the disable action
+            AgentLog::create([
+                'agent_id' => $model->id,
+                'executed_at' => now(),
+                'log_level' => 'WARN',
+                'message' => "Agent {$model->name} administratively DISABLED",
+                'operation' => 'admin_disable',
+                'context_data' => json_encode([
+                    'previous_status' => $wasHealthy ? 'healthy' : 'down',
+                    'disabled_by_admin' => true
+                ]),
+                'entity_type' => 'AgentController',
+                'entity_id' => $model->id,
+            ]);
+
+            // If agent has devices, mark them as affected by disabled agent
+            if ($model->devices()->count() > 0) {
+                dispatch(new UpdateAgentDevicesStatusJob(
+                    $model->id,
+                    301, // Disabled agent status code
+                    'Agent administratively disabled'
+                ))->onQueue('rConfigDefault');
+            }
+        });
+
+        return $this->successResponse('Agent disabled successfully!', [
+            'id' => $model->id,
+            'status' => 'disabled'
+        ]);
     }
 }
