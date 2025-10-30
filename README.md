@@ -28,19 +28,20 @@ git checkout -b release/v1.1.3
 ```bash
 git add .
 git commit -m "Prepare release v1.1.3"
+git push origin release/v1.1.3
 ```
 
 ### 5. Merge to Main Branch
 ```bash
 git checkout main
-git merge release/v1.0.19
+git merge release/v1.1.3
 git push origin main
 ```
 
 ### 6. Create and Push Git Tag
 ```bash
-git tag -a v1.0.18 -m "Release version v1.0.18"
-git push origin v1.0.18
+git tag -a v1.1.3 -m "Release version v1.1.3"
+git push origin v1.1.3
 ```
 
 ### 7. Clear Composer Cache and Update
@@ -56,7 +57,7 @@ php artisan rconfig:clear-all
 
 ### 9. Create GitHub Release
 - Go to GitHub repository
-- Create new release using the v1.0.16 tag
+- Create new release using the v1.1.3 tag
 - Add release notes describing changes
 
 ### 10. Update Package Repository
