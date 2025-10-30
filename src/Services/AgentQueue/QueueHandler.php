@@ -3,6 +3,7 @@
 namespace  Rconfig\VectorServer\Services\AgentQueue;
 
 use App\Models\Template;
+use App\Services\Connections\Params\DeviceParams;
 use Illuminate\Support\Str;
 use Rconfig\VectorServer\Models\Agent;
 use Rconfig\VectorServer\Models\AgentQueue;
@@ -47,13 +48,19 @@ class QueueHandler
 
     function buildConnectionParams(array $yamlContents, array $device, string $command): array
     {
+
+        // Use DeviceParams to properly resolve device_credentials for the device, if present
+        $deviceParams = new DeviceParams($device);
+        $resolvedParams = $deviceParams->getAllDeviceParams();
+        $deviceRecord = $resolvedParams->deviceparams;
+
         // Initial connection parameters
         $connection_params = [
-            'username' => $device['device_username'] ?? '',
-            'password' => $device['device_password'] ?? '',
-            'enable_password' => $device['device_enable_password'] ?? '',
-            'main_prompt' =>  $device['device_main_prompt'] ?? '',
-            'enable_prompt' => $device['device_enable_prompt'] ?? '',
+            'username' => $deviceRecord['device_username'] ?? '',
+            'password' => $deviceRecord['device_password'] ?? '',
+            'enable_password' => $deviceRecord['device_enable_password'] ?? '',
+            'main_prompt' =>  $deviceRecord['device_main_prompt'] ?? '',
+            'enable_prompt' => $deviceRecord['device_enable_prompt'] ?? '',
             'command' => $command ?? '',
         ];
 
