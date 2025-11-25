@@ -78,6 +78,7 @@ class QueueHandler
         $connection_params['enablePassPrmpt'] = $yamlContents['auth']['enablePassPrmpt'] ?? '';
         $connection_params['hpAnyKeyStatus'] = $yamlContents['auth']['hpAnyKeyStatus'] ?? 'off';
         $connection_params['hpAnyKeyPrmpt'] = $yamlContents['auth']['hpAnyKeyPrmpt'] ?? '';
+        $connection_params['ctrlYLogin'] = $yamlContents['auth']['ctrlYLogin'] ?? 'off';
         $connection_params['linebreak'] = $yamlContents['config']['linebreak'] ?? 'n';
         $connection_params['paging'] = $yamlContents['config']['paging'] ?? 'off';
         $connection_params['pagingCmd'] = $yamlContents['config']['pagingCmd'] ?? '';
