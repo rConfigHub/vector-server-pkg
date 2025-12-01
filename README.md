@@ -9,7 +9,7 @@
 ### 1. Create and Switch to New Branch
 ```bash
  cd ../vector-server-pkg/
-git checkout -b release/v1.1.4
+git checkout -b release/v1.1.5
 ```
 
 ### 2. Make Your Changes
@@ -20,28 +20,28 @@ git checkout -b release/v1.1.4
 - Open `composer.json` in the `rconfig/vector-server` repository
 - Update the `version` field:
 ```json
-"version": "v1.1.4"
+"version": "v1.1.5"
 ```
 **Note:** Consider removing the version field entirely and let Composer infer from Git tags
 
 ### 4. Commit Changes
 ```bash
 git add .
-git commit -m "Prepare release v1.1.4"
-git push origin release/v1.1.4
+git commit -m "Prepare release v1.1.5"
+git push origin release/v1.1.5
 ```
 
 ### 5. Merge to Main Branch
 ```bash
 git checkout main
-git merge release/v1.1.4
+git merge release/v1.1.5
 git push origin main
 ```
 
 ### 6. Create and Push Git Tag
 ```bash
-git tag -a v1.1.4 -m "Release version v1.1.4"
-git push origin v1.1.4
+git tag -a v1.1.5 -m "Release version v1.1.5"
+git push origin v1.1.5
 ```
 
 ### 7. Clear Composer Cache and Update
@@ -57,7 +57,7 @@ php artisan rconfig:clear-all
 
 ### 9. Create GitHub Release
 - Go to GitHub repository
-- Create new release using the v1.1.4 tag
+- Create new release using the v1.1.5 tag
 - Add release notes describing changes
 
 ### 10. Update Package Repository
