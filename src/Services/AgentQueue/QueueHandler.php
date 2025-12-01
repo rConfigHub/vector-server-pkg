@@ -48,7 +48,6 @@ class QueueHandler
 
     function buildConnectionParams(array $yamlContents, array $device, string $command): array
     {
-
         // Use DeviceParams to properly resolve device_credentials for the device, if present
         $deviceParams = new DeviceParams($device);
         $resolvedParams = $deviceParams->getAllDeviceParams();
@@ -59,36 +58,42 @@ class QueueHandler
             'username' => $deviceRecord['device_username'] ?? '',
             'password' => $deviceRecord['device_password'] ?? '',
             'enable_password' => $deviceRecord['device_enable_password'] ?? '',
-            'main_prompt' =>  $deviceRecord['device_main_prompt'] ?? '',
+            'main_prompt' => $deviceRecord['device_main_prompt'] ?? '',
             'enable_prompt' => $deviceRecord['device_enable_prompt'] ?? '',
             'command' => $command ?? '',
         ];
 
-        // Explicitly map second-level keys to $connection_params
-        $connection_params['timeout'] = $yamlContents['connect']['timeout'] ?? 30;
-        $connection_params['retry_count'] = $yamlContents['connect']['retry_count'] ?? 3;
-        $connection_params['protocol'] = $yamlContents['connect']['protocol'] ?? 'ssh-agent';
-        $connection_params['port'] = (string)($yamlContents['connect']['port'] ?? '22');
-        $connection_params['retries'] = $yamlContents['connect']['retries'] ?? 3;
-        $connection_params['isNonInteractiveMode'] = $yamlContents['connect']['isNonInteractiveMode'] ?? false;
-        $connection_params['usernamePrompt'] = $yamlContents['auth']['username'] ?? '';
-        $connection_params['passwordPrompt'] = $yamlContents['auth']['password'] ?? '';
-        $connection_params['enable'] = $yamlContents['auth']['enable'] ?? 'off';
-        $connection_params['enableCmd'] = $yamlContents['auth']['enableCmd'] ?? '';
-        $connection_params['enablePassPrmpt'] = $yamlContents['auth']['enablePassPrmpt'] ?? '';
-        $connection_params['hpAnyKeyStatus'] = $yamlContents['auth']['hpAnyKeyStatus'] ?? 'off';
-        $connection_params['hpAnyKeyPrmpt'] = $yamlContents['auth']['hpAnyKeyPrmpt'] ?? '';
-        $connection_params['ctrlYLogin'] = $yamlContents['auth']['ctrlYLogin'] ?? 'off';
-        $connection_params['linebreak'] = $yamlContents['config']['linebreak'] ?? 'n';
-        $connection_params['paging'] = $yamlContents['config']['paging'] ?? 'off';
-        $connection_params['pagingCmd'] = $yamlContents['config']['pagingCmd'] ?? '';
-        $connection_params['resetPagingCmd'] = $yamlContents['config']['resetPagingCmd'] ?? '';
-        $connection_params['pagerPrompt'] = $yamlContents['config']['pagerPrompt'] ?? '';
-        $connection_params['pagerPromptCmd'] = $yamlContents['config']['pagerPromptCmd'] ?? '';
-        $connection_params['saveConfig'] = $yamlContents['config']['saveConfig'] ?? '';
-        $connection_params['exitCmd'] = $yamlContents['config']['exitCmd'] ?? '';
-        $connection_params['name'] = $yamlContents['main']['name'] ?? '';
-        $connection_params['desc'] = $yamlContents['main']['desc'] ?? '';
+        // Connect params
+        $connection_params['timeout'] = isset($yamlContents['connect']['timeout']) ? $yamlContents['connect']['timeout'] : 30;
+        $connection_params['retry_count'] = isset($yamlContents['connect']['retry_count']) ? $yamlContents['connect']['retry_count'] : 3;
+        $connection_params['protocol'] = isset($yamlContents['connect']['protocol']) ? $yamlContents['connect']['protocol'] : 'ssh-agent';
+        $connection_params['port'] = isset($yamlContents['connect']['port']) ? (string)$yamlContents['connect']['port'] : '22';
+        $connection_params['retries'] = isset($yamlContents['connect']['retries']) ? $yamlContents['connect']['retries'] : 3;
+        $connection_params['isNonInteractiveMode'] = isset($yamlContents['connect']['isNonInteractiveMode']) ? $yamlContents['connect']['isNonInteractiveMode'] : false;
+        $connection_params['ctrlYLogin'] = isset($yamlContents['connect']['ctrlYLogin']) && $yamlContents['connect']['ctrlYLogin'] === 'on' ? 'on' : 'off';
+
+        // Auth params
+        $connection_params['usernamePrompt'] = isset($yamlContents['auth']['username']) ? $yamlContents['auth']['username'] : '';
+        $connection_params['passwordPrompt'] = isset($yamlContents['auth']['password']) ? $yamlContents['auth']['password'] : '';
+        $connection_params['enable'] = isset($yamlContents['auth']['enable']) && $yamlContents['auth']['enable'] === 'on' ? 'on' : 'off';
+        $connection_params['enableCmd'] = isset($yamlContents['auth']['enableCmd']) ? $yamlContents['auth']['enableCmd'] : '';
+        $connection_params['enablePassPrmpt'] = isset($yamlContents['auth']['enablePassPrmpt']) ? $yamlContents['auth']['enablePassPrmpt'] : '';
+        $connection_params['hpAnyKeyStatus'] = isset($yamlContents['auth']['hpAnyKeyStatus']) && $yamlContents['auth']['hpAnyKeyStatus'] === 'on' ? 'on' : 'off';
+        $connection_params['hpAnyKeyPrmpt'] = isset($yamlContents['auth']['hpAnyKeyPrmpt']) ? $yamlContents['auth']['hpAnyKeyPrmpt'] : '';
+
+        // Config params
+        $connection_params['linebreak'] = isset($yamlContents['config']['linebreak']) ? $yamlContents['config']['linebreak'] : 'n';
+        $connection_params['paging'] = isset($yamlContents['config']['paging']) && $yamlContents['config']['paging'] === 'on' ? 'on' : 'off';
+        $connection_params['pagingCmd'] = isset($yamlContents['config']['pagingCmd']) ? $yamlContents['config']['pagingCmd'] : '';
+        $connection_params['resetPagingCmd'] = isset($yamlContents['config']['resetPagingCmd']) ? $yamlContents['config']['resetPagingCmd'] : '';
+        $connection_params['pagerPrompt'] = isset($yamlContents['config']['pagerPrompt']) ? $yamlContents['config']['pagerPrompt'] : '';
+        $connection_params['pagerPromptCmd'] = isset($yamlContents['config']['pagerPromptCmd']) ? $yamlContents['config']['pagerPromptCmd'] : '';
+        $connection_params['saveConfig'] = isset($yamlContents['config']['saveConfig']) ? $yamlContents['config']['saveConfig'] : '';
+        $connection_params['exitCmd'] = isset($yamlContents['config']['exitCmd']) ? $yamlContents['config']['exitCmd'] : '';
+
+        // Main params
+        $connection_params['name'] = isset($yamlContents['main']['name']) ? $yamlContents['main']['name'] : '';
+        $connection_params['desc'] = isset($yamlContents['main']['desc']) ? $yamlContents['main']['desc'] : '';
 
         return $connection_params;
     }
