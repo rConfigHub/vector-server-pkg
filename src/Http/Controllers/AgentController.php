@@ -12,6 +12,8 @@ use Rconfig\VectorServer\Http\Requests\StoreAgentRequest;
 use Rconfig\VectorServer\Jobs\UpdateAgentDevicesStatusJob;
 use Rconfig\VectorServer\Models\Agent;
 use Rconfig\VectorServer\Models\AgentLog;
+use Rconfig\VectorServer\Models\VectorAgentBootstrapToken;
+use Rconfig\VectorServer\Services\BootstrapTokenService;
 use Spatie\QueryBuilder\AllowedFilter;
 use Spatie\QueryBuilder\QueryBuilder;
 
@@ -31,6 +33,8 @@ class AgentController extends Controller
                 AllowedFilter::custom('q', new QueryFilterMultipleFields, 'id, name, email, srcip'),
                 AllowedFilter::exact('status'),
                 AllowedFilter::exact('is_admin_enabled'),
+                AllowedFilter::exact('reported_version'),
+                AllowedFilter::exact('reported_platform'),
             ])
             ->defaultSort('-id')
             ->allowedSorts('name', 'id', 'created_at', 'is_admin_enabled')
@@ -146,6 +150,85 @@ class AgentController extends Controller
         $model->save();
 
         return $this->successResponse('Token regenerated successfully!', ['id' => $model->api_token]);
+    }
+
+    public function generateBootstrapToken($id, BootstrapTokenService $tokenService)
+    {
+        $this->authorize('agent.update');
+
+        $agent = Agent::findOrFail($id);
+
+        VectorAgentBootstrapToken::where('agent_id', $agent->id)
+            ->whereNull('used_at')
+            ->update(['used_at' => now()]);
+
+        $ttlMinutes = 60;
+        $rawToken = $tokenService->generate($agent->id, $ttlMinutes);
+        $tokenHash = hash('sha256', $rawToken);
+        $token = VectorAgentBootstrapToken::where('token_hash', $tokenHash)->first();
+
+        return response()->json([
+            'token' => $rawToken,
+            'expires_at' => $token?->expires_at ?? now()->addMinutes($ttlMinutes),
+        ]);
+    }
+
+    public function rotateRuntimeKey($id)
+    {
+        $this->authorize('agent.update');
+
+        $agent = Agent::findOrFail($id);
+        $agent->runtime_key = Str::uuid()->toString();
+        $agent->runtime_key_rotated_at = now();
+        $agent->save();
+
+        return response()->json([
+            'runtime_key' => $agent->runtime_key,
+            'rotated_at' => $agent->runtime_key_rotated_at,
+        ]);
+    }
+
+    public function installCommand($id, Request $request, BootstrapTokenService $tokenService)
+    {
+        $this->authorize('agent.view');
+
+        $agent = Agent::findOrFail($id);
+        $ttlMinutes = 60;
+        $rawToken = $tokenService->generate($agent->id, $ttlMinutes);
+        $tokenHash = hash('sha256', $rawToken);
+        $token = VectorAgentBootstrapToken::where('token_hash', $tokenHash)->first();
+
+        $serverUrl = $request->getSchemeAndHttpHost();
+        $command = 'curl -kfsSL "' . $serverUrl . '/vector/install.sh?bootstrap_token=' . $rawToken . '" | bash';
+
+        return response()->json([
+            'command' => $command,
+            'expires_at' => $token?->expires_at ?? now()->addMinutes($ttlMinutes),
+        ]);
+    }
+
+    public function filters()
+    {
+        $this->authorize('agent.view');
+
+        $versions = Agent::query()
+            ->whereNotNull('reported_version')
+            ->distinct()
+            ->orderBy('reported_version')
+            ->pluck('reported_version')
+            ->values();
+
+        $platforms = Agent::query()
+            ->whereNotNull('reported_platform')
+            ->distinct()
+            ->orderBy('reported_platform')
+            ->pluck('reported_platform')
+            ->values();
+
+        return $this->successResponse('Agent filters loaded.', [
+            'reported_versions' => $versions,
+            'reported_platforms' => $platforms,
+        ]);
     }
 
     public function enable($id)

@@ -34,13 +34,15 @@ class AgentSyncController extends Controller
         $wasDown = $this->agent->status == 2; // Track if agent was previously down
 
         // Use database transaction to ensure atomicity
-        DB::transaction(function () use ($wasDown) {
+        DB::transaction(function () use ($wasDown, $request) {
             $this->agent->last_check_in_at = now()->format('Y-m-d H:i:s');
             $this->agent->missed_checkins = 0;
             $this->agent->next_scheduled_checkin_at = now()->addSeconds($this->agent->checkin_interval)->format('Y-m-d H:i:s');
             $this->agent->status = 1; // Set to healthy
             $this->agent->reported_version = $request->input('reported_version');
-            $this->agent->reported_platform = $request->input('reported_platform');
+            $reportedPlatform = $request->input('reported_platform');
+            $this->agent->reported_platform = $reportedPlatform;
+            $this->agent->platform = $reportedPlatform;
             $this->agent->save();
 
             // If agent was down and now recovered, trigger device status recovery
