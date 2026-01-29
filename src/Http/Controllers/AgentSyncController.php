@@ -3,6 +3,7 @@
 namespace Rconfig\VectorServer\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Rconfig\VectorServer\Jobs\UpdateAgentDevicesStatusJob;
 use Rconfig\VectorServer\Models\Agent;
@@ -17,7 +18,7 @@ class AgentSyncController extends Controller
         return response()->json(['status' => 'Agent Sync API is working']);
     }
 
-    public function sync()
+    public function sync(Request $request)
     {
         $this->agent = Agent::where('id', app('agent_id'))->first();
 
@@ -38,6 +39,8 @@ class AgentSyncController extends Controller
             $this->agent->missed_checkins = 0;
             $this->agent->next_scheduled_checkin_at = now()->addSeconds($this->agent->checkin_interval)->format('Y-m-d H:i:s');
             $this->agent->status = 1; // Set to healthy
+            $this->agent->reported_version = $request->input('reported_version');
+            $this->agent->reported_platform = $request->input('reported_platform');
             $this->agent->save();
 
             // If agent was down and now recovered, trigger device status recovery
