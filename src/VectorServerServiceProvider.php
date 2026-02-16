@@ -7,6 +7,7 @@ use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Contracts\Foundation\CachesRoutes;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
+use Rconfig\VectorServer\CentralManager\CentralManagerGate;
 use Rconfig\VectorServer\Console\Commands\VectorAgentDownloadBinary;
 use Rconfig\VectorServer\Console\Commands\VectorMonitorAgentCheckIns;
 use Rconfig\VectorServer\Http\Middleware\AgentAttachId;
@@ -21,6 +22,10 @@ class VectorServerServiceProvider extends ServiceProvider
     {
         $this->app->singleton('agentqueueservice', function () {
             return new QueueHandler();
+        });
+
+        $this->app->singleton('central-manager.gate', function () {
+            return new CentralManagerGate();
         });
 
         $this->registerConfig();
@@ -46,6 +51,11 @@ class VectorServerServiceProvider extends ServiceProvider
             __DIR__ . '/../config/vector-server.php',
             'vector-server'
         );
+
+        $this->mergeConfigFrom(
+            __DIR__ . '/../config/central_manager.php',
+            'central_manager'
+        );
     }
 
     protected function publishConfig()
@@ -53,6 +63,10 @@ class VectorServerServiceProvider extends ServiceProvider
         $this->publishes([
             __DIR__ . '/../config/vector-server.php' => config_path('vector-server.php'),
         ], 'config');
+
+        $this->publishes([
+            __DIR__ . '/../config/central_manager.php' => config_path('central_manager.php'),
+        ], 'vector-central-manager-config');
     }
 
     protected function publishViews()
