@@ -20,6 +20,7 @@ class Agent extends Model
     protected $casts = [
         'agent_debug' => 'boolean',
         'runtime_key_rotated_at' => 'datetime',
+        'ssl_verify' => 'boolean',
     ];
 
     protected static function newFactory()

@@ -14,7 +14,7 @@ final class StoreAgentDTO extends DtoBase
     public ?string $api_token;
     public int $status;
     public bool|int $agent_debug;
-    public bool|int $ssl_verify;
+    public bool $ssl_verify;
     public int $retry_count;
     public int $retry_interval;
     public int $job_retry_count;
