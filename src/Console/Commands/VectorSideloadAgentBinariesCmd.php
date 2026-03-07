@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Console\Commands\Vector;
+namespace Rconfig\VectorServer\Console\Commands;
 
 use Illuminate\Console\Command;
 use Rconfig\VectorServer\Models\VectorBinary;
