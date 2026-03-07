@@ -44,6 +44,11 @@ git tag -a v1.1.9 -m "Release version v1.1.9"
 git push origin v1.1.9
 ```
 
+Optional - Update Main V8 Pro with the latest package version:
+```bash
+composer require rconfighub/vector-server-pkg:v1.1.9
+```
+
 ### 7. Clear Composer Cache and Update
 ```bash
 composer clear-cache

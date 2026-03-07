@@ -10,6 +10,7 @@ use Illuminate\Support\ServiceProvider;
 use Rconfig\VectorServer\CentralManager\CentralManagerGate;
 use Rconfig\VectorServer\Console\Commands\VectorAgentDownloadBinary;
 use Rconfig\VectorServer\Console\Commands\VectorMonitorAgentCheckIns;
+use Rconfig\VectorServer\Console\Commands\VectorSideloadAgentBinariesCmd;
 use Rconfig\VectorServer\Http\Middleware\AgentAttachId;
 use Rconfig\VectorServer\Http\Middleware\AgentCheckApiSyncAccess;
 use Rconfig\VectorServer\Http\Middleware\AgentEnforceHttps;
@@ -146,6 +147,7 @@ class VectorServerServiceProvider extends ServiceProvider
     {
         $this->commands([
             VectorAgentDownloadBinary::class,
+            VectorSideloadAgentBinariesCmd::class,
         ]);
 
         if ($this->app->runningInConsole()) {
