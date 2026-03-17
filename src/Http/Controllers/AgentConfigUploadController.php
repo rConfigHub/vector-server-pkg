@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Device;
 use App\Services\Config\SaveConfigsToDiskAndDbService;
 use Illuminate\Http\Request;
+use Rconfig\VectorServer\Models\AgentQueue;
 
 class AgentConfigUploadController extends Controller
 {
@@ -34,8 +35,10 @@ class AgentConfigUploadController extends Controller
         }
 
         $command = $request->connection_params['command'];
+        $queueJob = AgentQueue::where('ulid', $request->ulid)->first();
+        $reportId = $queueJob?->task_report_id ?: $request->ulid;
 
-        $configSaveResult = (new SaveConfigsToDiskAndDbService('agent_download', $command, $utf8_content, $deviceRecord, 'agent_' . app('agent_id'), $request->ulid))->saveConfigs();
+        $configSaveResult = (new SaveConfigsToDiskAndDbService('agent_download', $command, $utf8_content, $deviceRecord, 'agent_' . app('agent_id'), $reportId))->saveConfigs();
         return response()->json(['success' => true, 'configSaveResult' => $configSaveResult]);
     }
 }

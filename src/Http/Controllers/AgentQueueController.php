@@ -8,6 +8,7 @@ use App\Models\Device;
 use Illuminate\Http\Request;
 use Rconfig\VectorServer\Models\Agent;
 use Rconfig\VectorServer\Models\AgentQueue;
+use Rconfig\VectorServer\Services\AgentTaskRuns\RunTrackerService;
 use Spatie\QueryBuilder\AllowedFilter;
 use Spatie\QueryBuilder\QueryBuilder;
 
@@ -27,6 +28,27 @@ class AgentQueueController extends Controller
                 AllowedFilter::exact('device_id'),
                 AllowedFilter::exact('agent_id'),
                 AllowedFilter::exact('processed'),
+                AllowedFilter::exact('retry_failed'),
+                AllowedFilter::callback('created_at_between', function ($query, $value) {
+                    // Accept both CSV string and array payload formats.
+                    if (is_array($value)) {
+                        $start = $value[0] ?? null;
+                        $end = $value[1] ?? $start;
+                    } else {
+                        $parts = explode(',', (string) $value);
+                        $start = $parts[0] ?? null;
+                        $end = $parts[1] ?? $start;
+                    }
+
+                    if (! $start || ! $end) {
+                        return;
+                    }
+
+                    $query->whereBetween('created_at', [
+                        \Carbon\Carbon::parse($start)->startOfDay(),
+                        \Carbon\Carbon::parse($end)->endOfDay(),
+                    ]);
+                }),
                 AllowedFilter::callback('newer_than', function ($query, $value) {
                     $query->where('id', '>', $value);
                 }),
@@ -81,6 +103,8 @@ class AgentQueueController extends Controller
                 $job->retry_failed = 1;
                 $job->save();
 
+                (new RunTrackerService)->markUnitFailedByUlid($job->ulid, 'Agent retries exhausted before processing.');
+
                 // Track this device for status update since a job failed
                 $this->updateDeviceStatus($job->device_id, 0);
 
@@ -110,6 +134,8 @@ class AgentQueueController extends Controller
 
         $job->processed = 1;
         $job->save();
+
+        (new RunTrackerService)->markUnitSuccessByUlid($job->ulid);
 
         // Update device status since a job was successfully processed
         $this->updateDeviceStatus($job->device_id, 1);

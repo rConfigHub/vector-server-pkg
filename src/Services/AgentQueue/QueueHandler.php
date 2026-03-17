@@ -5,13 +5,14 @@ namespace  Rconfig\VectorServer\Services\AgentQueue;
 use App\Models\Template;
 use App\Services\Connections\Params\DeviceParams;
 use Illuminate\Support\Str;
-use Rconfig\VectorServer\Models\Agent;
+use Illuminate\Support\Facades\Schema;
 use Rconfig\VectorServer\Models\AgentQueue;
+use Rconfig\VectorServer\Services\AgentTaskRuns\RunTrackerService;
 use Symfony\Component\Yaml\Yaml;
 
 class QueueHandler
 {
-    public function create_from_device(array $device)
+    public function create_from_device(array $device, array $taskContext = [])
     {
         try {
 
@@ -28,14 +29,36 @@ class QueueHandler
 
                 $connection_params = $this->buildConnectionParams($yamlContents, $device, $command);
 
-                AgentQueue::create([
+                $ulid = Str::ulid()->toBase32();
+
+                $queuePayload = [
                     'agent_id' => $device['agent_id'],
-                    'ulid' => Str::ulid()->toBase32(),
+                    'ulid' => $ulid,
                     'device_id' => $device['id'],
                     'ip_address' => $device['device_ip'],
                     'connection_params' => $connection_params,
                     'retry_attempt' => $yamlContents['connect']['retries'] ?? 1,
-                ]);
+                ];
+
+                if (Schema::hasColumn('agent_queues', 'task_report_id')) {
+                    $queuePayload['task_report_id'] = $taskContext['task_report_id'] ?? null;
+                    $queuePayload['task_run_id'] = $taskContext['task_run_id'] ?? null;
+                    $queuePayload['task_id'] = $taskContext['task_id'] ?? null;
+                }
+
+                AgentQueue::create($queuePayload);
+
+                if (! empty($taskContext['task_report_id']) && ! empty($taskContext['task_run_id'])) {
+                    (new RunTrackerService)->registerExpectedUnit([
+                        'task_run_id' => $taskContext['task_run_id'],
+                        'task_report_id' => $taskContext['task_report_id'],
+                        'task_id' => $taskContext['task_id'] ?? null,
+                        'device_id' => $device['id'],
+                        'agent_id' => $device['agent_id'] ?? null,
+                        'command' => $command,
+                        'queue_ulid' => $ulid,
+                    ]);
+                }
             }
         } catch (\Exception $e) {
             $logmsg =  'Error creating agent queue record for device ID: ' . $device['id'] . ' ' . $e->getMessage();
