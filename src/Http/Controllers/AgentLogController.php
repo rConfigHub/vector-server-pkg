@@ -5,6 +5,7 @@ namespace Rconfig\VectorServer\Http\Controllers;
 use App\Facades\VectorServer;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\QueryFilters\QueryFilterMultipleFields;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Rconfig\VectorServer\Models\AgentLog;
@@ -31,6 +32,20 @@ class AgentLogController extends Controller
                 AllowedFilter::custom('q', new QueryFilterMultipleFields, 'message'),
                 AllowedFilter::exact('agent_id'),
                 AllowedFilter::exact('log_level'),
+                AllowedFilter::callback('date_from', function ($query, $value) {
+                    if (empty($value)) {
+                        return;
+                    }
+
+                    $query->where('created_at', '>=', Carbon::parse($value)->startOfDay());
+                }),
+                AllowedFilter::callback('date_to', function ($query, $value) {
+                    if (empty($value)) {
+                        return;
+                    }
+
+                    $query->where('created_at', '<=', Carbon::parse($value)->endOfDay());
+                }),
                 AllowedFilter::callback('newer_than', function ($query, $value) {
                     $query->where('id', '>', $value);
                 }),
