@@ -127,7 +127,7 @@ class VectorServerServiceProvider extends ServiceProvider
         });
 
         // Web Api Routes with nameSpace (Api) removed
-        Route::prefix('api')->middleware('auth:api')->group(function () {
+        Route::prefix('api')->middleware(['api', 'auth:sanctum'])->group(function () {
             $this->loadRoutesFrom(__DIR__ . '/../routes/agents.php');
             $this->loadRoutesFrom(__DIR__ . '/../routes/agentlog.php');
             $this->loadRoutesFrom(__DIR__ . '/../routes/agentqueue.php');
