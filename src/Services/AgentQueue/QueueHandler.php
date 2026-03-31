@@ -98,6 +98,9 @@ class QueueHandler
         // Auth params
         $connection_params['usernamePrompt'] = isset($yamlContents['auth']['username']) ? $yamlContents['auth']['username'] : '';
         $connection_params['passwordPrompt'] = isset($yamlContents['auth']['password']) ? $yamlContents['auth']['password'] : '';
+        if (array_key_exists('sshInteractive', $yamlContents['auth'] ?? [])) {
+            $connection_params['sshInteractive'] = $yamlContents['auth']['sshInteractive'];
+        }
         $connection_params['enable'] = isset($yamlContents['auth']['enable']) && $yamlContents['auth']['enable'] === 'on' ? 'on' : 'off';
         $connection_params['enableCmd'] = isset($yamlContents['auth']['enableCmd']) ? $yamlContents['auth']['enableCmd'] : '';
         $connection_params['enablePassPrmpt'] = isset($yamlContents['auth']['enablePassPrmpt']) ? $yamlContents['auth']['enablePassPrmpt'] : '';
