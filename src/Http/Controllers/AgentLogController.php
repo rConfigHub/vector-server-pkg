@@ -19,14 +19,13 @@ class AgentLogController extends Controller
     {
         $this->authorize('agent.view');
 
-        $userRole = auth()->user()->roles()->first();
+        $relationships = [];
 
         // add agent if VectorServer is enabled
         if (VectorServer::isInstalled()) {
             $relationships[] = 'agent';
         }
 
-        $searchCols = ['name', 'email'];
         $query = QueryBuilder::for(AgentLog::class)
             ->allowedFilters([
                 AllowedFilter::custom('q', new QueryFilterMultipleFields, 'message'),
@@ -37,14 +36,14 @@ class AgentLogController extends Controller
                         return;
                     }
 
-                    $query->where('created_at', '>=', Carbon::parse($value)->startOfDay());
+                    $query->where('executed_at', '>=', Carbon::parse($value)->startOfDay());
                 }),
                 AllowedFilter::callback('date_to', function ($query, $value) {
                     if (empty($value)) {
                         return;
                     }
 
-                    $query->where('created_at', '<=', Carbon::parse($value)->endOfDay());
+                    $query->where('executed_at', '<=', Carbon::parse($value)->endOfDay());
                 }),
                 AllowedFilter::callback('newer_than', function ($query, $value) {
                     $query->where('id', '>', $value);
@@ -52,7 +51,7 @@ class AgentLogController extends Controller
             ])
             ->with($relationships)
             ->defaultSort('-id')
-            ->allowedSorts('id', 'agent_id', 'log_level', 'created_at', 'operation', 'entity_type')
+            ->allowedSorts('id', 'agent_id', 'log_level', 'created_at', 'executed_at', 'operation', 'entity_type')
             ->paginate($request->perPage ?? 10);
 
         return response()->json($query);
@@ -70,6 +69,7 @@ class AgentLogController extends Controller
     {
         $rawlogs = json_decode($request->getContent(), true);
         try {
+            $ingestedAt = now();
             $logs = [];
             foreach ($rawlogs as $key => $value) {
                 $logs[] = [
@@ -82,6 +82,8 @@ class AgentLogController extends Controller
                     'entity_type' => $value['entity_type'] ?? null,
                     'entity_id' => $value['entity_id'] ?? null,
                     'correlation_id' => $value['correlation_id'] ?? null,
+                    'created_at' => $ingestedAt,
+                    'updated_at' => $ingestedAt,
                 ];
             }
 

@@ -14,6 +14,7 @@ class AgentLog extends Model
     protected $guarded = [];
 
     protected $casts = [
+        'executed_at' => 'datetime',
         'context_data' => 'array',
     ];
 
