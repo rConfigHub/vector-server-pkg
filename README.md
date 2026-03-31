@@ -9,7 +9,7 @@
 ### 1. Create and Switch to New Branch
 ```bash
  cd ../vector-server-pkg/
-git checkout -b release/v1.2.3
+git checkout -b release/v1.2.4
 ```
 
 ### 2. Make Your Changes
@@ -20,33 +20,33 @@ git checkout -b release/v1.2.3
 - Open `composer.json` in the `rconfig/vector-server` repository
 - Update the `version` field:
 ```json
-"version": "v1.2.3"
+"version": "v1.2.4"
 ```
 **Note:** Consider removing the version field entirely and let Composer infer from Git tags
 
 ### 4. Commit Changes
 ```bash
 git add .
-git commit -m "Prepare release v1.2.3"
-git push origin release/v1.2.3
+git commit -m "Prepare release v1.2.4"
+git push origin release/v1.2.4
 ```
 
 ### 5. Merge to Main Branch
 ```bash
 git checkout main
-git merge release/v1.2.3
+git merge release/v1.2.4
 git push origin main
 ```
 
 ### 6. Create and Push Git Tag
 ```bash
-git tag -a v1.2.3 -m "Release version v1.2.3"
-git push origin v1.2.3
+git tag -a v1.2.4 -m "Release version v1.2.4"
+git push origin v1.2.4
 ```
 
 Optional - Update Main V8 Pro with the latest package version:
 ```bash
-composer require rconfighub/vector-server-pkg:v1.2.3
+composer require rconfighub/vector-server-pkg:v1.2.4
 ```
 
 ### 7. Clear Composer Cache and Update
@@ -62,7 +62,7 @@ php artisan rconfig:clear-all
 
 ### 9. Create GitHub Release
 - Go to GitHub repository
-- Create new release using the v1.2.3 tag
+- Create new release using the v1.2.4 tag
 - Add release notes describing changes
 
 ### 10. Update Package Repository
@@ -75,13 +75,13 @@ If you created the wrong tag or it points to the wrong commit:
 
 ```bash
 # Delete incorrect tag locally and remotely
-git tag -d v1.2.3
-git push origin :refs/tags/v1.2.3
+git tag -d v1.2.4
+git push origin :refs/tags/v1.2.4
 
 # Create correct tag on the right commit
 git checkout [correct-commit-hash]
-git tag -a v1.2.3 -m "Release version v1.2.3"
-git push origin v1.2.3
+git tag -a v1.2.4 -m "Release version v1.2.4"
+git push origin v1.2.4
 ```
 
 ## Best Practices
