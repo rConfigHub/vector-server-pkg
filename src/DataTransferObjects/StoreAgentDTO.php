@@ -11,6 +11,7 @@ final class StoreAgentDTO extends DtoBase
     public string $name;
     public ?string $email;
     public ?string $srcip;
+    public ?array $srcip_allowlist;
     public ?string $api_token;
     public int $status;
     public bool|int $agent_debug;
@@ -29,6 +30,7 @@ final class StoreAgentDTO extends DtoBase
         $this->name = $parameters['name'];
         $this->email = $parameters['email'] ?? null;
         $this->srcip = $parameters['srcip'] ?? null;
+        $this->srcip_allowlist = $parameters['srcip_allowlist'] ?? null;
         $this->api_token = $parameters['api_token'] ?? null;
         $this->status = $parameters['status'] ?? 0;
         $this->agent_debug = $parameters['agent_debug'] ?? 0;

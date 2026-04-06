@@ -21,6 +21,7 @@ class Agent extends Model
         'agent_debug' => 'boolean',
         'runtime_key_rotated_at' => 'datetime',
         'ssl_verify' => 'boolean',
+        'srcip_allowlist' => 'array',
     ];
 
     protected static function newFactory()

@@ -8,6 +8,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Rconfig\VectorServer\Models\Agent;
+use Rconfig\VectorServer\Services\AgentAccess\AgentSourceAllowlistService;
 
 class AgentCheckApiSyncAccess
 {
@@ -56,10 +57,17 @@ class AgentCheckApiSyncAccess
                 return $this->respondUnauthorized('Invalid API token');
             }
 
-            // Verify IP address
-            if ($agent->srcip !== $request->ip()) {
+            // Verify request source against IP/CIDR/hostname allowlist.
+            $allowlistService = app(AgentSourceAllowlistService::class);
+            $sourceCheck = $allowlistService->isRequestIpAllowed($agent, (string) $request->ip());
+            if (! $sourceCheck['allowed']) {
                 $msg = 'Unauthorized IP address from ' . $request->ip();
-                Log::warning($msg, ['expected_ip' => $agent->srcip, 'actual_ip' => $request->ip()]);
+                Log::warning($msg, [
+                    'agent_id' => $agent->id,
+                    'actual_ip' => $request->ip(),
+                    'reason' => $sourceCheck['reason'],
+                    'allowlist_count' => count($allowlistService->extractEntriesFromAgent($agent)),
+                ]);
                 activityLogIt(__CLASS__, __FUNCTION__, 'warning', $msg, 'agent_api_token', '', '', '');
                 return $this->respondUnauthorized('Unauthorized IP address');
             }
@@ -68,7 +76,11 @@ class AgentCheckApiSyncAccess
             app()->instance('agent_id', $agent->id);
 
             $msg = 'Agent authorized with ID ' . $agent->id . ' from ' . $request->ip();
-            Log::info($msg);
+            Log::info($msg, [
+                'agent_id' => $agent->id,
+                'match_type' => $sourceCheck['match_type'],
+                'matched_value' => $sourceCheck['matched_value'],
+            ]);
             activityLogIt(__CLASS__, __FUNCTION__, 'info', $msg, 'agent_api_token', '', '', '');
 
             return $next($request);

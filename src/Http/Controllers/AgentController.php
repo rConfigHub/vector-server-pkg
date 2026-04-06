@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Controllers\QueryFilters\QueryFilterMultipleFields;
 use App\Traits\RespondsWithHttpStatus;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Rconfig\VectorServer\Http\Requests\StoreAgentRequest;
@@ -52,7 +53,12 @@ class AgentController extends Controller
         $roles = array_column($request->roles, 'id');
         unset($request['roles']);
 
-        $model = Agent::create($request->toDTO()->toArray());
+        $payload = $request->toDTO()->toArray();
+        if (! Schema::hasColumn('agents', 'srcip_allowlist')) {
+            unset($payload['srcip_allowlist']);
+        }
+
+        $model = Agent::create($payload);
         $model->roles()->sync($roles);
 
         return $this->successResponse('Agent created successfully!', ['id' => $model->id]);
@@ -87,8 +93,13 @@ class AgentController extends Controller
         $roles = $request->roles instanceof \Illuminate\Support\Collection ? $request->roles->pluck('id')->toArray() : array_column($request->roles, 'id');
         unset($request['roles']);
 
+        $payload = $request->toDTO()->toArray();
+        if (! Schema::hasColumn('agents', 'srcip_allowlist')) {
+            unset($payload['srcip_allowlist']);
+        }
+
         $model = Agent::find($id);
-        $model = tap($model)->update($request->toDTO()->toArray()); // tap returns model instead of boolean
+        $model = tap($model)->update($payload); // tap returns model instead of boolean
         $model->roles()->sync($roles);
 
         if (! $model->roles()->find(1)) {

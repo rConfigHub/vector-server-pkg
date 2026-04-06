@@ -5,6 +5,7 @@ namespace Rconfig\VectorServer\Http\Requests;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Str;
 use Rconfig\VectorServer\DataTransferObjects\StoreAgentDTO;
+use Rconfig\VectorServer\Services\AgentAccess\AgentSourceAllowlistService;
 
 class StoreAgentRequest extends FormRequest
 {
@@ -19,7 +20,7 @@ class StoreAgentRequest extends FormRequest
             $rules = [
                 'name' => 'required|string|max:255',
                 'email' => 'nullable|email',
-                'srcip' => 'nullable|ipv4',
+                'srcip' => 'nullable|string|max:2048',
                 'status' => 'nullable|integer|in:0,1,2,3,4',
                 'agent_debug' => 'nullable|boolean',
                 'ssl_verify' => 'nullable|boolean',
@@ -39,7 +40,7 @@ class StoreAgentRequest extends FormRequest
             $rules = [
                 'name' => 'required|string|max:255',
                 'email' => 'nullable|email',
-                'srcip' => 'nullable|ipv4',
+                'srcip' => 'nullable|string|max:2048',
                 'api_token' => 'required|nullable|uuid',
                 'status' => 'nullable|integer|in:0,1,2,3,4',
                 'agent_debug' => 'nullable|boolean',
@@ -59,6 +60,28 @@ class StoreAgentRequest extends FormRequest
         return $rules;
     }
 
+    public function after(): array
+    {
+        return [
+            function ($validator) {
+                $allowlist = app(AgentSourceAllowlistService::class)->normalizeRawInput($this->input('srcip'));
+
+                if (! empty($allowlist['errors'])) {
+                    foreach ($allowlist['errors'] as $error) {
+                        $validator->errors()->add('srcip', $error);
+                    }
+
+                    return;
+                }
+
+                $this->merge([
+                    'srcip' => $allowlist['normalized_input'],
+                    'srcip_allowlist' => $allowlist['entries'],
+                ]);
+            },
+        ];
+    }
+
     /**
      * Build and return a DTO.
      */
@@ -68,6 +91,7 @@ class StoreAgentRequest extends FormRequest
             'name' => $this->name,
             'email' => $this->email,
             'srcip' => $this->srcip,
+            'srcip_allowlist' => $this->input('srcip_allowlist'),
             'api_token' => $this->api_token ?? Str::uuid()->toString(),
             'status' => $this->status ?? 0,
             'agent_debug' => $this->agent_debug ?? 0,
