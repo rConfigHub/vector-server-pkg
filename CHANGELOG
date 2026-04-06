@@ -2,6 +2,9 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.2.5] – 2026-05/06
+- closes RCO-822 Vector IP address allow ranges, multiple and reverse DNS
+
 ## [1.2.4] – 2026-03-31
 - Fix date filtering in AgentLogController and add executed_at cast in AgentLog model
 
