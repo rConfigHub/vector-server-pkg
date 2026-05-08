@@ -2,7 +2,6 @@
 
 namespace Rconfig\VectorServer;
 
-use App\Models\User;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Contracts\Foundation\CachesRoutes;
 use Illuminate\Support\Facades\Route;
@@ -18,15 +17,14 @@ use Rconfig\VectorServer\Services\AgentQueue\QueueHandler;
 
 class VectorServerServiceProvider extends ServiceProvider
 {
-
     public function register()
     {
         $this->app->singleton('agentqueueservice', function () {
-            return new QueueHandler();
+            return new QueueHandler;
         });
 
         $this->app->singleton('central-manager.gate', function () {
-            return new CentralManagerGate();
+            return new CentralManagerGate;
         });
 
         $this->registerConfig();
@@ -121,7 +119,7 @@ class VectorServerServiceProvider extends ServiceProvider
         });
 
         Route::group([
-            'middleware' =>  ['agent.enforce.https', 'agent.check.api.sync.access', 'cors'],
+            'middleware' => ['agent.enforce.https', 'agent.check.api.sync.access', 'cors'],
         ], function () {
             $this->loadRoutesFrom(__DIR__ . '/../routes/api_agentsync.php');
         });
@@ -131,6 +129,12 @@ class VectorServerServiceProvider extends ServiceProvider
             $this->loadRoutesFrom(__DIR__ . '/../routes/agents.php');
             $this->loadRoutesFrom(__DIR__ . '/../routes/agentlog.php');
             $this->loadRoutesFrom(__DIR__ . '/../routes/agentqueue.php');
+        });
+
+        // Public REST API v2 — token-authenticated. Used by runbooks/automation
+        // to provision agents without an SPA session.
+        Route::prefix('api/v2')->middleware(['apiv2auth', 'cors'])->group(function () {
+            $this->loadRoutesFrom(__DIR__ . '/../routes/api_v2_agents.php');
         });
     }
 
