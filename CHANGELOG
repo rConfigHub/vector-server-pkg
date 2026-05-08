@@ -2,7 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
-## [1.2.5] – 2026-05/06
+## [1.2.6] – 2026-05-09
+- closes RCO-884 Add API-driven Vector Agent provisioning + deployment docs
+
+## [1.2.5] – 2026-05-06
 - closes RCO-822 Vector IP address allow ranges, multiple and reverse DNS
 
 ## [1.2.4] – 2026-03-31
