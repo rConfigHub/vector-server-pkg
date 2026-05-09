@@ -8,7 +8,7 @@
 
 ### 1. Create and Switch to New Branch
 ```bash
- cd ../vector-server-pkg/
+ cd /var/www/html/vector-server-pkg/
 git checkout -b release/v1.2.6
 ```
 

@@ -14,6 +14,11 @@ use Rconfig\VectorServer\Models\VectorAgentBootstrapToken;
 use Rconfig\VectorServer\Services\AgentAccess\AgentSourceAllowlistService;
 use Rconfig\VectorServer\Services\BootstrapTokenService;
 
+/**
+ * @group Agent Provisioning
+ *
+ * @authenticated
+ */
 class AgentProvisionController extends Controller
 {
     use RespondsWithHttpStatus;
