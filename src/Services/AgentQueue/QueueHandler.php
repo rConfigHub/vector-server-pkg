@@ -90,6 +90,11 @@ class QueueHandler
         $connection_params['timeout'] = isset($yamlContents['connect']['timeout']) ? $yamlContents['connect']['timeout'] : 30;
         $connection_params['retry_count'] = isset($yamlContents['connect']['retry_count']) ? $yamlContents['connect']['retry_count'] : 3;
         $connection_params['protocol'] = isset($yamlContents['connect']['protocol']) ? $yamlContents['connect']['protocol'] : 'ssh-agent';
+        $templatePort = isset($yamlContents['connect']['port']) ? (string)$yamlContents['connect']['port'] : '22';
+        $connection_params['port'] = ! empty($deviceRecord['device_port_override'])
+            ? (string)$deviceRecord['device_port_override']
+            : $templatePort;
+
         $connection_params['port'] = isset($yamlContents['connect']['port']) ? (string)$yamlContents['connect']['port'] : '22';
         $connection_params['retries'] = isset($yamlContents['connect']['retries']) ? $yamlContents['connect']['retries'] : 3;
         $connection_params['isNonInteractiveMode'] = isset($yamlContents['connect']['isNonInteractiveMode']) ? $yamlContents['connect']['isNonInteractiveMode'] : false;
