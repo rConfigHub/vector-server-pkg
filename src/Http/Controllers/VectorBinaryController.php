@@ -10,25 +10,30 @@ use Rconfig\VectorServer\Services\VectorBinaryService;
 
 class VectorBinaryController extends Controller
 {
-
     public function index(Request $request, VectorBinaryService $binaryService)
     {
         $platform = (string) $request->query('platform', 'linux_amd64');
+        $limit = max(1, min((int) $request->query('limit', 50), 200));
 
-        $binaries = VectorBinary::where('platform', $platform)
+        $binaries = VectorBinary::query()
+            ->where('platform', $platform)
+            ->with('latestCache')
             ->orderByDesc('created_at')
+            ->limit($limit)
             ->get();
 
-        $items = $binaries->map(function (VectorBinary $binary) use ($binaryService) {
+        $downloadIndex = $binaries->contains(fn (VectorBinary $b) => $b->version === 'latest')
+            ? $binaryService->fetchDownloadIndex()
+            : null;
+
+        $items = $binaries->map(function (VectorBinary $binary) use ($binaryService, $downloadIndex) {
             $displayVersion = $binary->version;
-            if ($binary->version === 'latest') {
-                $resolved = $binaryService->resolveLatestDisplayVersion($binary);
+            if ($binary->version === 'latest' && is_array($downloadIndex)) {
+                $resolved = $binaryService->resolveLatestDisplayVersionFromIndex($binary, $downloadIndex);
                 if ($resolved) {
                     $displayVersion = $resolved;
                 }
             }
-
-            $cache = $binary->caches()->orderByDesc('downloaded_at')->first();
 
             return [
                 'platform' => $binary->platform,
@@ -37,7 +42,7 @@ class VectorBinaryController extends Controller
                 'sha256' => $binary->sha256,
                 'size_bytes' => $binary->size_bytes,
                 'is_active' => (bool) $binary->is_active,
-                'downloaded_at' => $cache?->downloaded_at,
+                'downloaded_at' => $binary->latestCache?->downloaded_at,
                 'updated_at' => $binary->updated_at ?? $binary->created_at,
             ];
         });
@@ -47,6 +52,7 @@ class VectorBinaryController extends Controller
             'items' => $items,
         ]);
     }
+
     public function active(Request $request, VectorBinaryService $binaryService)
     {
         $platform = (string) $request->query('platform', 'linux_amd64');

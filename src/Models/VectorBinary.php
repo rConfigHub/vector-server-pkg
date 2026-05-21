@@ -7,11 +7,8 @@ use Illuminate\Database\Eloquent\Model;
 class VectorBinary extends Model
 {
     protected $table = 'vector_binaries';
-
     protected $guarded = [];
-
     public $timestamps = false;
-
     protected $casts = [
         'is_active' => 'boolean',
         'size_bytes' => 'integer',
@@ -21,5 +18,10 @@ class VectorBinary extends Model
     public function caches()
     {
         return $this->hasMany(VectorBinaryCache::class, 'binary_id');
+    }
+
+    public function latestCache()
+    {
+        return $this->hasOne(VectorBinaryCache::class, 'binary_id')->latestOfMany('downloaded_at');
     }
 }

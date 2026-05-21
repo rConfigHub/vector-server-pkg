@@ -2,6 +2,7 @@
 
 namespace Rconfig\VectorServer\Services;
 
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Rconfig\VectorServer\Models\VectorBinary;
@@ -10,6 +11,10 @@ use Rconfig\VectorServer\Models\VectorBinaryCache;
 class VectorBinaryService
 {
     public const DOWNLOAD_INDEX_URL = 'https://portal.rconfig.com/api/vectoragent-downloads';
+
+    public const DOWNLOAD_INDEX_CACHE_KEY = 'vector:binaries:download-index';
+
+    public const DOWNLOAD_INDEX_CACHE_TTL = 300;
 
     public function getBinaryStoragePath(): string
     {
@@ -45,11 +50,11 @@ class VectorBinaryService
         });
     }
 
-
-    public function resolveLatestDisplayVersion(VectorBinary $binary): ?string
+    public function fetchDownloadIndex(): ?array
     {
-        if ($binary->version !== 'latest') {
-            return null;
+        $cached = Cache::get(self::DOWNLOAD_INDEX_CACHE_KEY);
+        if ($cached !== null) {
+            return is_array($cached) ? $cached : null;
         }
 
         try {
@@ -65,6 +70,17 @@ class VectorBinaryService
         $payload = $response->json();
         $downloads = $payload['data'] ?? null;
         if (! is_array($downloads)) {
+            return null;
+        }
+
+        Cache::put(self::DOWNLOAD_INDEX_CACHE_KEY, $downloads, self::DOWNLOAD_INDEX_CACHE_TTL);
+
+        return $downloads;
+    }
+
+    public function resolveLatestDisplayVersionFromIndex(VectorBinary $binary, array $downloads): ?string
+    {
+        if ($binary->version !== 'latest') {
             return null;
         }
 
@@ -95,6 +111,20 @@ class VectorBinaryService
         }
 
         return null;
+    }
+
+    public function resolveLatestDisplayVersion(VectorBinary $binary): ?string
+    {
+        if ($binary->version !== 'latest') {
+            return null;
+        }
+
+        $downloads = $this->fetchDownloadIndex();
+        if ($downloads === null) {
+            return null;
+        }
+
+        return $this->resolveLatestDisplayVersionFromIndex($binary, $downloads);
     }
 
     protected function normalizePlatformKey(string $platform): string
