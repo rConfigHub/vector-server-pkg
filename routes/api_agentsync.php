@@ -7,6 +7,7 @@ use Rconfig\VectorServer\Http\Controllers\AgentLogController;
 use Rconfig\VectorServer\Http\Controllers\AgentQueueController;
 use Rconfig\VectorServer\Http\Controllers\AgentSyncController;
 use Rconfig\VectorServer\Http\Controllers\ApiTestController;
+use Rconfig\VectorServer\Http\Controllers\AgentPingController;
 
 
 Route::prefix('api/agentsync')->group(function () {
@@ -20,4 +21,7 @@ Route::prefix('api/agentsync')->group(function () {
 
     Route::get('/status', [AgentSyncController::class, 'status']);
     Route::get('/sync', [AgentSyncController::class, 'sync']);
+
+    Route::get('/devices', [AgentPingController::class, 'getDevices']);
+    Route::patch('/devices/bulk-ping-status', [AgentPingController::class, 'bulkUpdatePingStatus']);
 });

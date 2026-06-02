@@ -54,7 +54,12 @@ class AgentSyncController extends Controller
         });
 
         // Hide sensitive data before returning
+        $deviceIds = $this->agent->devices()->orderBy('id')->pluck('id')->toArray();
+        $deviceChecksum = empty($deviceIds) ? '' : md5(implode(',', $deviceIds));
+
         $response = $this->agent->makeHidden(['srcip', 'api_token']);
+        $response = $response->toArray();
+        $response['device_checksum'] = $deviceChecksum;
 
         return response()->json($response);
     }
