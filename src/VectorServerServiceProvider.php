@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 use Rconfig\VectorServer\CentralManager\CentralManagerGate;
 use Rconfig\VectorServer\Console\Commands\VectorAgentDownloadBinary;
+use Rconfig\VectorServer\Console\Commands\VectorCleanupStaleJobs;
 use Rconfig\VectorServer\Console\Commands\VectorMonitorAgentCheckIns;
 use Rconfig\VectorServer\Console\Commands\VectorSideloadAgentBinariesCmd;
 use Rconfig\VectorServer\Http\Middleware\AgentAttachId;
@@ -152,6 +153,7 @@ class VectorServerServiceProvider extends ServiceProvider
         $this->commands([
             VectorAgentDownloadBinary::class,
             VectorSideloadAgentBinariesCmd::class,
+            VectorCleanupStaleJobs::class,
         ]);
 
         if ($this->app->runningInConsole()) {
@@ -177,5 +179,6 @@ class VectorServerServiceProvider extends ServiceProvider
     {
         $schedule = $this->app->make(Schedule::class);
         $schedule->command('vector:agent-checkins')->everyMinute();
+        $schedule->command('vector:cleanup-stale-jobs')->everyFiveMinutes();
     }
 }
