@@ -3,6 +3,7 @@
 namespace Rconfig\VectorServer\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\RunComplianceForDeviceJob;
 use App\Models\Device;
 use App\Services\Config\SaveConfigsToDiskAndDbService;
 use Illuminate\Http\Request;
@@ -39,6 +40,15 @@ class AgentConfigUploadController extends Controller
         $reportId = $queueJob?->task_report_id ?: $request->ulid;
 
         $configSaveResult = (new SaveConfigsToDiskAndDbService('agent_download', $command, $utf8_content, $deviceRecord, 'agent_' . app('agent_id'), $reportId))->saveConfigs();
+
+        if ($configSaveResult['success'] ?? false) {
+            try {
+                RunComplianceForDeviceJob::dispatch((int) $deviceRecord->id)->onQueue('PolicyCompliance');
+            } catch (\Throwable $e) {
+                \Log::error('Failed to dispatch RunComplianceForDeviceJob for device ' . $deviceRecord->id . ': ' . $e->getMessage());
+            }
+        }
+
         return response()->json(['success' => true, 'configSaveResult' => $configSaveResult]);
     }
 }
