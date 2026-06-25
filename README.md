@@ -46,7 +46,7 @@ git push origin v1.3.1
 
 Optional - Update Main V8 Pro with the latest package version:
 ```bash
-composer require rconfighub/vector-server-pkg:v1.2.9
+composer require rconfighub/vector-server-pkg:v1.3.1
 ```
 
 ### 7. Clear Composer Cache and Update
@@ -62,7 +62,7 @@ php artisan rconfig:clear-all
 
 ### 9. Create GitHub Release
 - Go to GitHub repository
-- Create new release using the v1.2.9 tag
+- Create new release using the v1.3.1 tag
 - Add release notes describing changes
 
 ### 10. Update Package Repository
@@ -75,13 +75,13 @@ If you created the wrong tag or it points to the wrong commit:
 
 ```bash
 # Delete incorrect tag locally and remotely
-git tag -d v1.2.9
-git push origin :refs/tags/v1.2.9
+git tag -d v1.3.1
+git push origin :refs/tags/v1.3.1
 
 # Create correct tag on the right commit
 git checkout [correct-commit-hash]
-git tag -a v1.2.9 -m "Release version v1.2.9"
-git push origin v1.2.9
+git tag -a v1.3.1 -m "Release version v1.3.1"
+git push origin v1.3.1
 ```
 
 ## Best Practices
