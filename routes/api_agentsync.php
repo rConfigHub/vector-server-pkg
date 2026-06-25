@@ -15,6 +15,7 @@ Route::prefix('api/agentsync')->group(function () {
 
     Route::get('/agent-queue/unprocessed', [AgentQueueController::class, 'get_unprocessed_jobs'])->name('agent-queue.unprocessed');
     Route::post('/agent-queue/{ulid}/process', [AgentQueueController::class, 'mark_as_processed'])->name('agent-queue.process');
+    Route::post('/agent-queues/{ulid}/failed', [AgentQueueController::class, 'mark_as_failed'])->name('agent-queue.failed');
     Route::post('/agent-queue/upload-config', [AgentConfigUploadController::class, 'upload_config'])->name('agent-results.uploadConfig');
 
     Route::post('/logs/ingest', [AgentLogController::class, 'log_ingest'])->name('log.ingest');

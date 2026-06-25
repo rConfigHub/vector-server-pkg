@@ -69,20 +69,6 @@ class AgentQueueController extends Controller
 
     public function get_unprocessed_jobs()
     {
-
-        /* 
-        * SUMMARY OF RETRY LOGIC:
-        * 
-        * When this method is called:
-        * 1. Jobs with retry_attempt = 0 → Marked as permanently failed (retry_failed = 1)
-        * 2. Jobs with retry_attempt > 0 → Retry count decremented, job remains available
-        * 3. Only jobs that aren't marked as failed are returned to the caller
-        * 4. Device status is updated based on job outcomes for affected devices
-        * 
-        * IMPORTANT: Jobs marked as retry_failed = 1 will no longer appear in future
-        * calls to this method due to the initial WHERE clause filtering them out.
-        */
-
         $agent = Agent::find(app('agent_id'));
 
         if (!$agent || $agent->id === 1) {
@@ -94,34 +80,7 @@ class AgentQueueController extends Controller
             ->where('agent_id', $agent->id)
             ->get();
 
-        // Keep track of devices that need status updates
-        $devicesNeedingUpdate = collect();
-
-        foreach ($jobs as $job) {
-            // $job->connection_params = json_decode($job->connection_params, true); // hard coding the cast here because it's not working in the model
-            if ($job->retry_attempt === 0) {
-                $job->retry_failed = 1;
-                $job->save();
-
-                (new RunTrackerService)->markUnitFailedByUlid($job->ulid, 'Agent retries exhausted before processing.');
-
-                // Track this device for status update since a job failed
-                $this->updateDeviceStatus($job->device_id, 0);
-
-                continue;
-            }
-            if ($job->retry_attempt > 0) {
-                $job->retry_attempt--;
-                $job->save();
-            }
-        }
-
-        // Re-fetch the jobs after updates to only return those still unprocessed and not marked as failed
-        $updatedJobs = $jobs->filter(function ($job) {
-            return !$job->retry_failed;
-        });
-
-        return response()->json(array_values($updatedJobs->toArray())); // Issue #9 fixed issue where get_unprocessed_jobs returns object sometimes
+        return response()->json(array_values($jobs->toArray()));
     }
 
     public function mark_as_processed($ulid)
@@ -157,6 +116,31 @@ class AgentQueueController extends Controller
             // $connectionParams['private_key_passphrase'] = '********';
 
             $job->connection_params = json_encode($connectionParams);
+            $job->save();
+        }
+
+        return response()->json(['success' => true]);
+    }
+
+    public function mark_as_failed($ulid)
+    {
+        $job = AgentQueue::where('ulid', $ulid)->first();
+
+        if (!$job) {
+            return response()->json(['error' => 'Job not found'], 422);
+        }
+
+        if ($job->retry_attempt > 0) {
+            $job->retry_attempt--;
+        }
+
+        if ($job->retry_attempt === 0) {
+            $job->retry_failed = 1;
+            $job->save();
+
+            (new RunTrackerService)->markUnitFailedByUlid($job->ulid, 'Job processing failed by agent.');
+            $this->updateDeviceStatus($job->device_id, 0);
+        } else {
             $job->save();
         }
 

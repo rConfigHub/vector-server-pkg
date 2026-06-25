@@ -9,7 +9,7 @@
 ### 1. Create and Switch to New Branch
 ```bash
  cd /var/www/html/vector-server-pkg/
-git checkout -b release/v1.2.9
+git checkout -b release/v1.3.1
 ```
 
 ### 2. Make Your Changes
@@ -20,28 +20,28 @@ git checkout -b release/v1.2.9
 - Open `composer.json` in the `rconfig/vector-server` repository
 - Update the `version` field:
 ```json
-"version": "v1.2.9"
+"version": "v1.3.1"
 ```
 **Note:** Consider removing the version field entirely and let Composer infer from Git tags
 
 ### 4. Commit Changes
 ```bash
 git add .
-git commit -m "Prepare release v1.2.9"
-git push origin release/v1.2.9
+git commit -m "Prepare release v1.3.1"
+git push origin release/v1.3.1
 ```
 
 ### 5. Merge to Main Branch
 ```bash
 git checkout main
-git merge release/v1.2.9
+git merge release/v1.3.1
 git push origin main
 ```
 
 ### 6. Create and Push Git Tag
 ```bash
-git tag -a v1.2.9 -m "Release version v1.2.9"
-git push origin v1.2.9
+git tag -a v1.3.1 -m "Release version v1.3.1"
+git push origin v1.3.1
 ```
 
 Optional - Update Main V8 Pro with the latest package version:
