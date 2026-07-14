@@ -2,13 +2,11 @@
 
 namespace Rconfig\VectorServer\Models;
 
-use App\Jobs\PublishToRabbitMQJob;
 use App\Models\Device;
 use App\Models\Role;
 use Database\Factories\AgentFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Rconfig\VectorServer\Models\User;
 use Rconfig\VectorServer\Traits\PublishesToRabbitMQ;
 
 class Agent extends Model
@@ -17,11 +15,15 @@ class Agent extends Model
     // use PublishesToRabbitMQ,; // disabled for now until we have a use case
 
     protected $guarded = [];
+
     protected $casts = [
         'agent_debug' => 'boolean',
         'runtime_key_rotated_at' => 'datetime',
         'ssl_verify' => 'boolean',
         'srcip_allowlist' => 'array',
+        'live_channel_enabled' => 'boolean',
+        'live_channel_connected' => 'boolean',
+        'live_channel_last_seen_at' => 'datetime',
     ];
 
     protected static function newFactory()
@@ -55,17 +57,22 @@ class Agent extends Model
 
     public function devicesLimited()
     {
-        return $this->hasMany(Device::class)->select('id', 'device_name', 'device_ip',  'agent_id'); // view_url comes back automatically
+        return $this->hasMany(Device::class)->select('id', 'device_name', 'device_ip', 'agent_id'); // view_url comes back automatically
     }
 
     /**
      * Status constants for better readability
      */
     const STATUS_HEALTHY = 1;
+
     const STATUS_DOWN = 2;
+
     const STATUS_WARNING = 3; // Optional: for future use
+
     const STATUS_DISABLED = 4;
+
     const ADMIN_ENABLED = 1;
+
     const ADMIN_DISABLED = 0;
 
     /**
@@ -129,7 +136,7 @@ class Agent extends Model
                 'context_data' => json_encode([
                     'old_status' => 'healthy',
                     'new_status' => 'down',
-                    'reason' => $reason
+                    'reason' => $reason,
                 ]),
                 'entity_type' => 'Agent',
                 'entity_id' => $this->id,
@@ -163,7 +170,7 @@ class Agent extends Model
                 'context_data' => json_encode([
                     'old_status' => $wasDown ? 'down' : 'unknown',
                     'new_status' => 'healthy',
-                    'reason' => $reason
+                    'reason' => $reason,
                 ]),
                 'entity_type' => 'Agent',
                 'entity_id' => $this->id,
