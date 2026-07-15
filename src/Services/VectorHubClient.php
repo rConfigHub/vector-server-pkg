@@ -51,6 +51,23 @@ class VectorHubClient
         return $response->json();
     }
 
+    /**
+     * Ask the hub to restart an agent over the live channel. The agent exits
+     * gracefully and its service manager brings it back.
+     *
+     * @return array<string, mixed>|null Hub response, or null if the agent is
+     *                                   not connected or the hub is unreachable.
+     */
+    public function restartAgent(int|string $agentId): ?array
+    {
+        $response = $this->rescue(fn () => $this->request()->post($this->url('/agents/'.$agentId.'/restart')));
+        if (! $response || ! $response->successful()) {
+            return null;
+        }
+
+        return $response->json();
+    }
+
     public function health(): bool
     {
         $response = $this->rescue(fn () => $this->request()->get($this->url('/health')));
@@ -60,7 +77,11 @@ class VectorHubClient
 
     protected function request(): PendingRequest
     {
-        $request = Http::timeout(10)->acceptJson();
+        // The hub's control API requires the shared secret in code, not just
+        // mTLS — so a cert misconfiguration can never leave it open.
+        $request = Http::timeout(10)
+            ->acceptJson()
+            ->withToken((string) config('vector-server.hub.auth_secret'));
 
         $options = [];
         if ($cert = config('vector-server.hub.client_cert')) {

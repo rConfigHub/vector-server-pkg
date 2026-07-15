@@ -6,8 +6,9 @@ use App\Http\Controllers\Controller;
 use App\Http\Controllers\QueryFilters\QueryFilterMultipleFields;
 use App\Traits\RespondsWithHttpStatus;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Rconfig\VectorServer\Http\Requests\StoreAgentRequest;
 use Rconfig\VectorServer\Jobs\UpdateAgentDevicesStatusJob;
@@ -15,6 +16,7 @@ use Rconfig\VectorServer\Models\Agent;
 use Rconfig\VectorServer\Models\AgentLog;
 use Rconfig\VectorServer\Models\VectorAgentBootstrapToken;
 use Rconfig\VectorServer\Services\BootstrapTokenService;
+use Rconfig\VectorServer\Services\VectorHubClient;
 use Spatie\QueryBuilder\AllowedFilter;
 use Spatie\QueryBuilder\QueryBuilder;
 
@@ -43,6 +45,7 @@ class AgentController extends Controller
             ->with('roles', 'devicesLimited')
             ->filterByRole($userRole->id)
             ->paginate($request->perPage ?? 10);
+
         return response()->json($query);
     }
 
@@ -90,7 +93,7 @@ class AgentController extends Controller
 
         $this->authorize('agent.update');
 
-        $roles = $request->roles instanceof \Illuminate\Support\Collection ? $request->roles->pluck('id')->toArray() : array_column($request->roles, 'id');
+        $roles = $request->roles instanceof Collection ? $request->roles->pluck('id')->toArray() : array_column($request->roles, 'id');
         unset($request['roles']);
 
         $payload = $request->toDTO()->toArray();
@@ -184,6 +187,40 @@ class AgentController extends Controller
         ]);
     }
 
+    /**
+     * Restart an agent over the Vector Hub live channel (RCO-1155). The hub
+     * sends the command down the agent's tunnel; the agent acknowledges, exits
+     * gracefully, and its service manager restarts it. Only works for agents
+     * with a live channel up and running under a supervisor.
+     */
+    public function restart($id, VectorHubClient $hub)
+    {
+        $this->authorize('agent.update');
+
+        $agent = Agent::findOrFail($id);
+
+        $result = $hub->restartAgent($agent->id);
+        if ($result === null) {
+            return $this->failureResponse(
+                "Could not restart {$agent->name}: the hub is unreachable or that agent's live channel is not connected.",
+                502
+            );
+        }
+
+        AgentLog::create([
+            'agent_id' => $agent->id,
+            'executed_at' => now(),
+            'log_level' => 'INFO',
+            'message' => "Agent {$agent->name} restarted via the Vector Hub live channel",
+            'operation' => 'live_channel_restart',
+            'context_data' => json_encode($result),
+            'entity_type' => 'Agent',
+            'entity_id' => $agent->id,
+        ]);
+
+        return $this->successResponse("Restart command sent to {$agent->name}.", $result);
+    }
+
     public function rotateRuntimeKey($id)
     {
         $this->authorize('agent.update');
@@ -210,7 +247,7 @@ class AgentController extends Controller
         $token = VectorAgentBootstrapToken::where('token_hash', $tokenHash)->first();
 
         $serverUrl = $request->getSchemeAndHttpHost();
-        $command = 'curl -kfsSL "' . $serverUrl . '/vector/install.sh?bootstrap_token=' . $rawToken . '" | bash';
+        $command = 'curl -kfsSL "'.$serverUrl.'/vector/install.sh?bootstrap_token='.$rawToken.'" | bash';
 
         return response()->json([
             'command' => $command,
@@ -269,7 +306,7 @@ class AgentController extends Controller
                 'context_data' => json_encode([
                     'reset_missed_checkins' => true,
                     'reset_status' => 'healthy',
-                    'next_checkin_scheduled' => $model->next_scheduled_checkin_at
+                    'next_checkin_scheduled' => $model->next_scheduled_checkin_at,
                 ]),
                 'entity_type' => 'AgentController',
                 'entity_id' => $model->id,
@@ -288,7 +325,7 @@ class AgentController extends Controller
         return $this->successResponse('Agent enabled successfully and reset!', [
             'id' => $model->id,
             'status' => 'healthy',
-            'next_checkin' => $model->next_scheduled_checkin_at
+            'next_checkin' => $model->next_scheduled_checkin_at,
         ]);
     }
 
@@ -318,7 +355,7 @@ class AgentController extends Controller
                 'operation' => 'admin_disable',
                 'context_data' => json_encode([
                     'previous_status' => $wasHealthy ? 'healthy' : 'down',
-                    'disabled_by_admin' => true
+                    'disabled_by_admin' => true,
                 ]),
                 'entity_type' => 'AgentController',
                 'entity_id' => $model->id,
@@ -336,7 +373,7 @@ class AgentController extends Controller
 
         return $this->successResponse('Agent disabled successfully!', [
             'id' => $model->id,
-            'status' => 'disabled'
+            'status' => 'disabled',
         ]);
     }
 }

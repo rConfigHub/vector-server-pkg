@@ -12,6 +12,7 @@ use Rconfig\VectorServer\Console\Commands\VectorCleanupStaleJobs;
 use Rconfig\VectorServer\Console\Commands\VectorHubSyncStatusCmd;
 use Rconfig\VectorServer\Console\Commands\VectorMonitorAgentCheckIns;
 use Rconfig\VectorServer\Console\Commands\VectorSideloadAgentBinariesCmd;
+use Rconfig\VectorServer\Console\Commands\VectorSshCmd;
 use Rconfig\VectorServer\Http\Middleware\AgentAttachId;
 use Rconfig\VectorServer\Http\Middleware\AgentCheckApiSyncAccess;
 use Rconfig\VectorServer\Http\Middleware\AgentEnforceHttps;
@@ -166,6 +167,7 @@ class VectorServerServiceProvider extends ServiceProvider
             VectorSideloadAgentBinariesCmd::class,
             VectorCleanupStaleJobs::class,
             VectorHubSyncStatusCmd::class,
+            VectorSshCmd::class,
         ]);
 
         if ($this->app->runningInConsole()) {
