@@ -141,6 +141,7 @@ class VectorServerServiceProvider extends ServiceProvider
             $this->loadRoutesFrom(__DIR__.'/../routes/agents.php');
             $this->loadRoutesFrom(__DIR__.'/../routes/agentlog.php');
             $this->loadRoutesFrom(__DIR__.'/../routes/agentqueue.php');
+            $this->loadRoutesFrom(__DIR__.'/../routes/hub.php');
         });
 
         // Public REST API v2 — token-authenticated. Used by runbooks/automation

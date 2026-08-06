@@ -44,7 +44,7 @@ class VectorSshCmd extends Command
             return self::FAILURE;
         }
 
-        [$username, $password] = $this->resolveCredentials($device);
+        [$username, $password, $privateKey, $passphrase] = $this->resolveCredentials($device);
         if ($username === '') {
             $this->error("Device {$device->device_name} has no usable SSH credentials.");
 
@@ -56,8 +56,8 @@ class VectorSshCmd extends Command
             return self::FAILURE;
         }
 
-        // EncryptStringCast decrypts the password on access; it goes straight
-        // to the hub over loopback and is never printed or logged.
+        // EncryptStringCast decrypts the password/key on access; they go
+        // straight to the hub over loopback and are never printed or logged.
         $header = [
             'secret' => (string) config('vector-server.hub.auth_secret'),
             'agent_id' => (string) $device->agent_id,
@@ -67,6 +67,8 @@ class VectorSshCmd extends Command
             'port' => (string) ($device->device_port_override ?: 22),
             'username' => $username,
             'password' => $password,
+            'private_key' => $privateKey,
+            'passphrase' => $passphrase,
             'term' => getenv('TERM') ?: 'xterm',
             'rows' => (int) $this->terminalRows(),
             'cols' => (int) $this->terminalCols(),
@@ -158,7 +160,7 @@ class VectorSshCmd extends Command
      * loader does: a linked credential set wins, otherwise the device falls
      * back to its own stored username and password.
      *
-     * @return array{0: string, 1: string} [username, password]
+     * @return array{0: string, 1: string, 2: string, 3: string} [username, password, privateKey, passphrase]
      */
     private function resolveCredentials(Device $device): array
     {
@@ -166,11 +168,17 @@ class VectorSshCmd extends Command
             $cred = $device->deviceCred;
 
             return $cred
-                ? [(string) $cred->cred_username, (string) $cred->cred_password]
-                : ['', ''];
+                ? [
+                    (string) $cred->cred_username,
+                    (string) $cred->cred_password,
+                    (string) ($cred->ssh_key ?? ''),
+                    (string) ($cred->ssh_key_passphrase ?? ''),
+                ]
+                : ['', '', '', ''];
         }
 
-        return [(string) $device->device_username, (string) $device->device_password];
+        // Device-level fallback credentials carry no SSH key.
+        return [(string) $device->device_username, (string) $device->device_password, '', ''];
     }
 
     private function resolveDevice(string $key): ?Device

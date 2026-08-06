@@ -24,6 +24,7 @@ class StoreAgentRequest extends FormRequest
                 'status' => 'nullable|integer|in:0,1,2,3,4',
                 'agent_debug' => 'nullable|boolean',
                 'ssl_verify' => 'nullable|boolean',
+                'live_channel_enabled' => 'nullable|boolean',
                 'retry_count' => 'nullable|integer|min:0',
                 'retry_interval' => 'nullable|integer|min:0',
                 'job_retry_count' => 'nullable|integer|min:0',
@@ -32,7 +33,7 @@ class StoreAgentRequest extends FormRequest
                 'log_upload_rate' => 'nullable|integer|min:0',
                 'worker_count' => 'nullable|integer|min:1',
                 'max_missed_checkins' => 'nullable|integer|min:0',
-                'roles' => 'required'
+                'roles' => 'required',
             ];
         }
 
@@ -45,6 +46,7 @@ class StoreAgentRequest extends FormRequest
                 'status' => 'nullable|integer|in:0,1,2,3,4',
                 'agent_debug' => 'nullable|boolean',
                 'ssl_verify' => 'nullable|boolean',
+                'live_channel_enabled' => 'nullable|boolean',
                 'retry_count' => 'nullable|integer|min:0',
                 'retry_interval' => 'nullable|integer|min:0',
                 'job_retry_count' => 'nullable|integer|min:0',
@@ -53,7 +55,7 @@ class StoreAgentRequest extends FormRequest
                 'log_upload_rate' => 'nullable|integer|min:0',
                 'worker_count' => 'nullable|integer|min:1',
                 'max_missed_checkins' => 'nullable|integer|min:0',
-                'roles' => 'required'
+                'roles' => 'required',
             ];
         }
 
@@ -96,6 +98,7 @@ class StoreAgentRequest extends FormRequest
             'status' => $this->status ?? 0,
             'agent_debug' => $this->agent_debug ?? 0,
             'ssl_verify' => $this->ssl_verify ?? true,
+            'live_channel_enabled' => $this->boolean('live_channel_enabled'),
             'retry_count' => $this->retry_count ?? 3,
             'retry_interval' => $this->retry_interval ?? 10,
             'job_retry_count' => $this->job_retry_count ?? 1,
@@ -103,7 +106,7 @@ class StoreAgentRequest extends FormRequest
             'queue_download_rate' => $this->queue_download_rate ?? 300,
             'log_upload_rate' => $this->log_upload_rate ?? 300,
             'worker_count' => $this->worker_count ?? 5,
-            'max_missed_checkins' => $this->max_missed_checkins ?? 3
+            'max_missed_checkins' => $this->max_missed_checkins ?? 3,
         ]);
     }
 }

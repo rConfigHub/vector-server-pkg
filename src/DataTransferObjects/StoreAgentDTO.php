@@ -16,6 +16,7 @@ final class StoreAgentDTO extends DtoBase
     public int $status;
     public bool|int $agent_debug;
     public bool $ssl_verify;
+    public bool $live_channel_enabled;
     public int $retry_count;
     public int $retry_interval;
     public int $job_retry_count;
@@ -35,6 +36,7 @@ final class StoreAgentDTO extends DtoBase
         $this->status = $parameters['status'] ?? 0;
         $this->agent_debug = $parameters['agent_debug'] ?? 0;
         $this->ssl_verify = $parameters['ssl_verify'] ?? true;
+        $this->live_channel_enabled = $parameters['live_channel_enabled'] ?? false;
         $this->retry_count = $parameters['retry_count'] ?? 3;
         $this->retry_interval = $parameters['retry_interval'] ?? 10;
         $this->job_retry_count = $parameters['job_retry_count'] ?? 1;
