@@ -27,5 +27,10 @@ return [
         'client_cert' => env('VECTOR_HUB_CLIENT_CERT', null),
         'client_key' => env('VECTOR_HUB_CLIENT_KEY', null),
         'ca_cert' => env('VECTOR_HUB_CA_CERT', null),
+        // Installed hub binary; its presence is how the UI detects an install.
+        'bin_path' => env('VECTOR_HUB_BIN_PATH', '/usr/local/bin/rconfig/activehub/vector-hub'),
+        // Root-owned dir the install writes the hub's TLS material to; the
+        // client-cert self-heal (SyncHubCertsJob) re-copies from here.
+        'tls_source_dir' => env('VECTOR_HUB_TLS_SOURCE_DIR', '/etc/vector-hub/tls'),
     ],
 ];

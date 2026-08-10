@@ -13,9 +13,44 @@ use Illuminate\Support\Facades\Log;
  */
 class VectorHubClient
 {
+    /** Default install path written by install-hub.sh; overridable via config. */
+    private const DEFAULT_BIN_PATH = '/usr/local/bin/rconfig/activehub/vector-hub';
+
     public function isConfigured(): bool
     {
         return ! empty(config('vector-server.hub.api_url'));
+    }
+
+    /** Absolute path to the installed hub binary. */
+    public function binPath(): string
+    {
+        return (string) config('vector-server.hub.bin_path', self::DEFAULT_BIN_PATH);
+    }
+
+    /** Whether the hub binary is present — how the UI detects an install. */
+    public function isInstalled(): bool
+    {
+        return is_file($this->binPath());
+    }
+
+    /**
+     * Whether the mTLS client material Laravel presents to the hub exists and
+     * is readable by the web user. Missing files are the recoverable case the
+     * self-heal (SyncHubCertsJob) targets; an unconfigured hub has no paths.
+     */
+    public function clientCertsPresent(): bool
+    {
+        foreach ([
+            config('vector-server.hub.client_cert'),
+            config('vector-server.hub.client_key'),
+            config('vector-server.hub.ca_cert'),
+        ] as $path) {
+            if (empty($path) || ! is_file($path) || ! is_readable($path)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**
@@ -43,7 +78,7 @@ class VectorHubClient
      */
     public function validateAgent(int|string $agentId): ?array
     {
-        $response = $this->rescue(fn () => $this->request()->post($this->url('/agents/'.$agentId.'/validate')));
+        $response = $this->rescue(fn () => $this->request()->post($this->url('/agents/' . $agentId . '/validate')));
         if (! $response || ! $response->successful()) {
             return null;
         }
@@ -60,7 +95,7 @@ class VectorHubClient
      */
     public function restartAgent(int|string $agentId): ?array
     {
-        $response = $this->rescue(fn () => $this->request()->post($this->url('/agents/'.$agentId.'/restart')));
+        $response = $this->rescue(fn () => $this->request()->post($this->url('/agents/' . $agentId . '/restart')));
         if (! $response || ! $response->successful()) {
             return null;
         }
@@ -99,7 +134,7 @@ class VectorHubClient
 
     protected function url(string $path): string
     {
-        return rtrim((string) config('vector-server.hub.api_url'), '/').$path;
+        return rtrim((string) config('vector-server.hub.api_url'), '/') . $path;
     }
 
     /**

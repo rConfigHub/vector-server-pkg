@@ -10,4 +10,5 @@ Route::post('vector-hub/agents/{id}/live-channel', [VectorHubManagementControlle
 Route::post('vector-hub/install', [VectorHubManagementController::class, 'install']);
 Route::post('vector-hub/uninstall', [VectorHubManagementController::class, 'uninstall']);
 Route::post('vector-hub/service/restart', [VectorHubManagementController::class, 'restartService']);
+Route::post('vector-hub/resync-certs', [VectorHubManagementController::class, 'resyncCerts']);
 Route::get('vector-hub/install/{id}', [VectorHubManagementController::class, 'installStatus']);

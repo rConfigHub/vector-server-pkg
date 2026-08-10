@@ -7,6 +7,7 @@ use App\Traits\RespondsWithHttpStatus;
 use Illuminate\Http\Request;
 use Rconfig\VectorServer\Jobs\HubServiceActionJob;
 use Rconfig\VectorServer\Jobs\InstallVectorHubJob;
+use Rconfig\VectorServer\Jobs\SyncHubCertsJob;
 use Rconfig\VectorServer\Models\Agent;
 use Rconfig\VectorServer\Models\AgentLog;
 use Rconfig\VectorServer\Models\VectorHubInstall;
@@ -21,16 +22,19 @@ class VectorHubManagementController extends Controller
 {
     use RespondsWithHttpStatus;
 
-    /** Fixed install path written by install-hub.sh. */
-    private const BIN_PATH = '/usr/local/bin/rconfig/activehub/vector-hub';
-
     public function status(VectorHubClient $hub)
     {
         $this->authorize('agent.view');
 
-        $installed = is_file(self::BIN_PATH);
+        $installed = $hub->isInstalled();
         $configured = $hub->isConfigured();
+        $clientCertsOk = $hub->clientCertsPresent();
         $healthy = $configured ? $hub->health() : false;
+
+        // Distinguish "the mTLS client material Laravel presents to the hub is
+        // missing" from a bare "not responding": the former is self-healable by
+        // re-copying from the hub's tls dir (SyncHubCertsJob), the latter is not.
+        $certsMissing = $installed && $configured && ! $clientCertsOk;
 
         $agents = [];
         $connectedAgents = null;
@@ -61,6 +65,8 @@ class VectorHubManagementController extends Controller
             'installed' => $installed,
             'configured' => $configured,
             'healthy' => $healthy,
+            'client_certs_ok' => $clientCertsOk,
+            'certs_missing' => $certsMissing,
             'connected_agents' => $connectedAgents,
             'agents' => $agents,
             'api_url' => config('vector-server.hub.api_url'),
@@ -123,6 +129,29 @@ class VectorHubManagementController extends Controller
         HubServiceActionJob::dispatch($record->id, 'restart');
 
         return $this->successResponse('Vector Hub restart queued.', ['id' => $record->id]);
+    }
+
+    /**
+     * Self-heal the Laravel-side hub client certificates. Re-copies the CA +
+     * client cert/key from the hub's tls dir into storage/app/vector-hub via
+     * the root Horizon worker (apache cannot read the root-owned source). Poll
+     * the result through installStatus().
+     */
+    public function resyncCerts(Request $request, VectorHubClient $hub)
+    {
+        $this->authorize('agent.update');
+
+        if (! $hub->isInstalled()) {
+            return $this->failureResponse('Vector Hub is not installed.', 422);
+        }
+
+        $record = VectorHubInstall::create([
+            'status' => 'queued',
+            'user_id' => optional($request->user())->id,
+        ]);
+        SyncHubCertsJob::dispatch($record->id);
+
+        return $this->successResponse('Certificate re-sync queued.', ['id' => $record->id]);
     }
 
     /** Enable or disable the live channel (desired state) for one agent. */
