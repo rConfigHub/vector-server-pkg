@@ -5,10 +5,13 @@ namespace Rconfig\VectorServer\Console\Commands;
 use App\Models\Device;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
-use Rconfig\VectorServer\Models\Agent;
 
 use function Laravel\Prompts\search;
 use function Laravel\Prompts\select;
+
+use Rconfig\VectorServer\Models\Agent;
+use Rconfig\VectorServer\Models\AgentLog;
+use Rconfig\VectorServer\Services\SshSessionLogger;
 
 /**
  * Opens an interactive SSH session to a device *through its Vector Agent*
@@ -22,8 +25,9 @@ use function Laravel\Prompts\select;
  */
 class VectorSshCmd extends Command
 {
-    protected $signature = 'vector:ssh {device? : Device id or name; omit to pick interactively}';
-
+    protected $signature = 'vector:ssh
+        {device? : Device id or name; omit to pick interactively}
+        {--log : Record this session (device, agent, and full transcript) to storage/logs/vector-ssh}';
     protected $description = 'Open an interactive SSH session to a device through its Vector Agent';
 
     /** Original terminal settings, restored on exit. */
@@ -74,7 +78,7 @@ class VectorSshCmd extends Command
             'cols' => (int) $this->terminalCols(),
         ];
 
-        fwrite($socket, json_encode($header)."\n");
+        fwrite($socket, json_encode($header) . "\n");
 
         $this->line("Connecting to {$device->device_name} ({$device->device_ip}) via agent {$device->agent_id}... press Ctrl-D or exit to end.");
         Log::info('vector:ssh session started', [
@@ -83,15 +87,71 @@ class VectorSshCmd extends Command
             'user' => get_current_user(),
         ]);
 
-        $this->pipe($socket);
+        $logger = $this->option('log') ? $this->startSessionLog($device, $username) : null;
 
+        $this->pipe($socket, $logger);
+
+        $logger?->close();
         fclose($socket);
         $this->restoreTerminal();
         $this->newLine();
         $this->info('Session ended.');
         Log::info('vector:ssh session ended', ['device_id' => $device->id]);
+        if ($logger) {
+            $this->line("Session transcript saved to {$logger->path()}");
+        }
 
         return self::SUCCESS;
+    }
+
+    /**
+     * Open a transcript for this session and record an audit entry noting the
+     * device and agent used. Credentials are never written to either.
+     */
+    private function startSessionLog(Device $device, string $username): ?SshSessionLogger
+    {
+        $operator = get_current_user() ?: 'unknown';
+        $agent = Agent::find($device->agent_id);
+
+        try {
+            $logger = new SshSessionLogger([
+                'operator' => $operator,
+                'agent_id' => $device->agent_id,
+                'agent_name' => $agent?->name,
+                'device_id' => $device->id,
+                'device_name' => (string) $device->device_name,
+                'device_ip' => (string) $device->device_ip,
+                'device_port' => $device->device_port_override ?: 22,
+                'username' => $username,
+            ]);
+        } catch (\Throwable $e) {
+            // Logging is best-effort — never block a session because the
+            // transcript file could not be opened.
+            $this->warn('Could not start session logging: ' . $e->getMessage());
+            Log::warning('vector:ssh session logging failed to start', ['device_id' => $device->id, 'error' => $e->getMessage()]);
+
+            return null;
+        }
+
+        $this->line("Session logging enabled → {$logger->path()}");
+        Log::info('vector:ssh session logging enabled', [
+            'device_id' => $device->id,
+            'agent_id' => $device->agent_id,
+            'operator' => $operator,
+            'path' => $logger->path(),
+        ]);
+
+        AgentLog::create([
+            'agent_id' => $device->agent_id,
+            'executed_at' => now(),
+            'log_level' => 'INFO',
+            'message' => "Logged SSH session opened to {$device->device_name} ({$device->device_ip}) by {$operator}",
+            'operation' => 'live_ssh_session_logged',
+            'entity_type' => 'Device',
+            'entity_id' => $device->id,
+        ]);
+
+        return $logger;
     }
 
     private function pickDevice(): ?Device
@@ -146,7 +206,7 @@ class VectorSshCmd extends Command
         $options = [];
         foreach ($agents as $agent) {
             $status = $agent->live_channel_connected
-                ? 'live channel up'.($agent->live_channel_rtt_ms !== null ? ", {$agent->live_channel_rtt_ms} ms" : '')
+                ? 'live channel up' . ($agent->live_channel_rtt_ms !== null ? ", {$agent->live_channel_rtt_ms} ms" : '')
                 : 'live channel down';
             $count = Device::where('agent_id', $agent->id)->count();
             $options[$agent->id] = "{$agent->name}  —  {$status}, {$count} device(s)";
@@ -208,7 +268,7 @@ class VectorSshCmd extends Command
     {
         // The broker listens on loopback; a plain socket keeps this command
         // free of any framing logic.
-        $socket = @stream_socket_client('tcp://'.$addr, $errno, $errstr, 10);
+        $socket = @stream_socket_client('tcp://' . $addr, $errno, $errstr, 10);
         if (! $socket) {
             $this->error("Cannot reach the Vector Hub session broker at {$addr}: {$errstr}");
 
@@ -221,10 +281,11 @@ class VectorSshCmd extends Command
 
     /**
      * Pump bytes between this terminal and the hub until either side closes.
+     * When a logger is supplied, the rendered device output is also recorded.
      *
      * @param  resource  $socket
      */
-    private function pipe($socket): void
+    private function pipe($socket, ?SshSessionLogger $logger = null): void
     {
         $stdin = fopen('php://stdin', 'r');
         stream_set_blocking($stdin, false);
@@ -249,6 +310,7 @@ class VectorSshCmd extends Command
                         continue;
                     }
                     fwrite(STDOUT, $data);
+                    $logger?->append($data);
                 } else {
                     $data = fread($stdin, 4096);
                     if ($data === '' || $data === false) {
@@ -276,7 +338,7 @@ class VectorSshCmd extends Command
     private function restoreTerminal(): void
     {
         if ($this->sttyState !== null && $this->sttyState !== '') {
-            shell_exec('stty '.escapeshellarg($this->sttyState).' 2>/dev/null');
+            shell_exec('stty ' . escapeshellarg($this->sttyState) . ' 2>/dev/null');
             $this->sttyState = null;
         }
     }
