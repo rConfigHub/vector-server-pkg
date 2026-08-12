@@ -7,7 +7,6 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 
 use function Laravel\Prompts\search;
-use function Laravel\Prompts\select;
 
 use Rconfig\VectorServer\Models\Agent;
 use Rconfig\VectorServer\Models\AgentLog;
@@ -188,31 +187,47 @@ class VectorSshCmd extends Command
     }
 
     /**
-     * Choose an agent, showing whether its live channel is currently up —
-     * a session can only be opened through a connected agent.
+     * Choose an agent to connect through. Only agents whose live channel is
+     * currently connected are offered — a session cannot be opened otherwise —
+     * and the list is searchable by name, like the device picker.
      */
     private function pickAgent(): ?int
     {
-        $agents = Agent::where('is_admin_enabled', Agent::ADMIN_ENABLED)
-            ->orderBy('name')
-            ->get(['id', 'name', 'live_channel_connected', 'live_channel_rtt_ms']);
-
-        if ($agents->isEmpty()) {
-            $this->error('No enabled agents found.');
+        if ($this->connectedAgentOptions() === []) {
+            $this->error('No agents have a live channel connected. Enable the live channel on an agent and wait for it to connect.');
 
             return null;
         }
 
-        $options = [];
-        foreach ($agents as $agent) {
-            $status = $agent->live_channel_connected
-                ? 'live channel up' . ($agent->live_channel_rtt_ms !== null ? ", {$agent->live_channel_rtt_ms} ms" : '')
-                : 'live channel down';
-            $count = Device::where('agent_id', $agent->id)->count();
-            $options[$agent->id] = "{$agent->name}  —  {$status}, {$count} device(s)";
-        }
+        $agentId = search(
+            label: 'Which agent?',
+            placeholder: 'Type to filter by name',
+            options: fn (string $value) => $this->connectedAgentOptions($value),
+            scroll: 15,
+        );
 
-        return (int) select(label: 'Which agent?', options: $options, scroll: 15);
+        return $agentId !== null ? (int) $agentId : null;
+    }
+
+    /**
+     * Agents eligible for an interactive session: admin-enabled and with the
+     * live channel currently connected, optionally filtered by name.
+     *
+     * @return array<int, string> agent id => display label
+     */
+    protected function connectedAgentOptions(string $filter = ''): array
+    {
+        return Agent::query()
+            ->where('is_admin_enabled', Agent::ADMIN_ENABLED)
+            ->where('live_channel_connected', true)
+            ->when($filter !== '', fn ($q) => $q->where('name', 'like', "%{$filter}%"))
+            ->orderBy('name')
+            ->limit(50)
+            ->get(['id', 'name', 'live_channel_rtt_ms'])
+            ->mapWithKeys(fn ($a) => [
+                $a->id => $a->name . ($a->live_channel_rtt_ms !== null ? "  ({$a->live_channel_rtt_ms} ms)" : '  (live)'),
+            ])
+            ->all();
     }
 
     /**
