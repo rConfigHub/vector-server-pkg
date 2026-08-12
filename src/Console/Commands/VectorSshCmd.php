@@ -225,7 +225,7 @@ class VectorSshCmd extends Command
             ->limit(50)
             ->get(['id', 'name', 'live_channel_rtt_ms'])
             ->mapWithKeys(fn ($a) => [
-                $a->id => $a->name . ($a->live_channel_rtt_ms !== null ? "  ({$a->live_channel_rtt_ms} ms)" : '  (live)'),
+                $a->id => $a->name . ($a->live_channel_rtt_ms !== null ? "  RTT - {$a->live_channel_rtt_ms}ms" : '  (live)'),
             ])
             ->all();
     }
