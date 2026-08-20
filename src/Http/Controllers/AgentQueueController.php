@@ -1,10 +1,12 @@
 <?php
 
-namespace  Rconfig\VectorServer\Http\Controllers;
+namespace Rconfig\VectorServer\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\QueryFilters\QueryFilterMultipleFields;
 use App\Models\Device;
+use App\Services\Notifications\AgentDeviceFailureNotifier;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Rconfig\VectorServer\Models\Agent;
 use Rconfig\VectorServer\Models\AgentQueue;
@@ -14,7 +16,6 @@ use Spatie\QueryBuilder\QueryBuilder;
 
 class AgentQueueController extends Controller
 {
-
     public function index(Request $request)
     {
         $this->authorize('agent.view');
@@ -45,8 +46,8 @@ class AgentQueueController extends Controller
                     }
 
                     $query->whereBetween('created_at', [
-                        \Carbon\Carbon::parse($start)->startOfDay(),
-                        \Carbon\Carbon::parse($end)->endOfDay(),
+                        Carbon::parse($start)->startOfDay(),
+                        Carbon::parse($end)->endOfDay(),
                     ]);
                 }),
                 AllowedFilter::callback('newer_than', function ($query, $value) {
@@ -56,6 +57,7 @@ class AgentQueueController extends Controller
             ->defaultSort('-id')
             ->allowedSorts('id', 'agent_id', 'device_id', 'processed')
             ->paginate($request->perPage ?? 10);
+
         return response()->json($query);
     }
 
@@ -64,6 +66,7 @@ class AgentQueueController extends Controller
         $this->authorize('agent.view');
 
         $agent = AgentQueue::findOrFail($id);
+
         return response()->json($agent);
     }
 
@@ -71,7 +74,7 @@ class AgentQueueController extends Controller
     {
         $agent = Agent::find(app('agent_id'));
 
-        if (!$agent || $agent->id === 1) {
+        if (! $agent || $agent->id === 1) {
             return response()->json(['error' => 'Unauthorized'], 401);
         }
 
@@ -87,7 +90,7 @@ class AgentQueueController extends Controller
     {
         $job = AgentQueue::where('ulid', $ulid)->first();
 
-        if (!$job) {
+        if (! $job) {
             return response()->json(['error' => 'Job not found'], 422);
         }
 
@@ -126,7 +129,7 @@ class AgentQueueController extends Controller
     {
         $job = AgentQueue::where('ulid', $ulid)->first();
 
-        if (!$job) {
+        if (! $job) {
             return response()->json(['error' => 'Job not found'], 422);
         }
 
@@ -138,8 +141,15 @@ class AgentQueueController extends Controller
             $job->retry_failed = 1;
             $job->save();
 
-            (new RunTrackerService)->markUnitFailedByUlid($job->ulid, 'Job processing failed by agent.');
+            $transitioned = (new RunTrackerService)->markUnitFailedByUlid($job->ulid, 'Job processing failed by agent.');
             $this->updateDeviceStatus($job->device_id, 0);
+
+            // Event-driven Device Connection Failure notification: fire once, at the
+            // authoritative failure (retries exhausted), rather than from the server
+            // timeout watchdog which false-positives on large agent fleets.
+            if ($transitioned) {
+                (new AgentDeviceFailureNotifier)->notifyDeviceFailure((int) $job->device_id, 'Job processing failed by agent.', $job->task_run_id);
+            }
         } else {
             $job->save();
         }
@@ -159,7 +169,7 @@ class AgentQueueController extends Controller
         // Get IDs from request body
         $ids = $request->input('ids', []);
 
-        if (empty($ids) || !is_array($ids)) {
+        if (empty($ids) || ! is_array($ids)) {
             return response()->json(['data' => []]);
         }
 

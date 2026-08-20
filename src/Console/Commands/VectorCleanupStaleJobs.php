@@ -3,6 +3,7 @@
 namespace Rconfig\VectorServer\Console\Commands;
 
 use App\Models\Device;
+use App\Services\Notifications\AgentDeviceFailureNotifier;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Rconfig\VectorServer\Models\AgentQueue;
@@ -29,10 +30,13 @@ class VectorCleanupStaleJobs extends Command
         $this->line("Found {$staleJobs->count()} stale job(s) older than {$timeoutMinutes} minutes.");
 
         foreach ($staleJobs as $job) {
-            DB::transaction(function () use ($job) {
+            $notifyDeviceId = null;
+            $notifyRunId = null;
+
+            DB::transaction(function () use ($job, &$notifyDeviceId, &$notifyRunId) {
                 $fresh = AgentQueue::lockForUpdate()->find($job->id);
 
-                if (!$fresh || $fresh->processed || $fresh->retry_failed) {
+                if (! $fresh || $fresh->processed || $fresh->retry_failed) {
                     return;
                 }
 
@@ -40,8 +44,13 @@ class VectorCleanupStaleJobs extends Command
                     $fresh->retry_failed = 1;
                     $fresh->save();
 
-                    (new RunTrackerService)->markUnitFailedByUlid($fresh->ulid, 'Agent retries exhausted - job timed out.');
+                    $transitioned = (new RunTrackerService)->markUnitFailedByUlid($fresh->ulid, 'Agent retries exhausted - job timed out.');
                     Device::where('id', $fresh->device_id)->update(['status' => 0]);
+
+                    if ($transitioned) {
+                        $notifyDeviceId = (int) $fresh->device_id;
+                        $notifyRunId = $fresh->task_run_id;
+                    }
 
                     $this->warn("Job {$fresh->ulid} permanently failed (retries exhausted).");
                 } else {
@@ -51,6 +60,12 @@ class VectorCleanupStaleJobs extends Command
                     $this->line("Job {$fresh->ulid} retry decremented to {$fresh->retry_attempt}.");
                 }
             });
+
+            // Fire the failure notification outside the transaction so mail dispatch
+            // does not hold the row lock. Only fires on the transition into FAILED.
+            if ($notifyDeviceId !== null) {
+                (new AgentDeviceFailureNotifier)->notifyDeviceFailure($notifyDeviceId, 'Agent retries exhausted - job timed out.', $notifyRunId);
+            }
         }
 
         return 0;
