@@ -46,22 +46,27 @@ class RunTrackerService
         $tracker->increment('pending_total');
     }
 
-    public function markUnitSuccessByUlid(string $queueUlid): void
+    public function markUnitSuccessByUlid(string $queueUlid): bool
     {
         if (! $this->tablesAvailable()) {
-            return;
+            return false;
         }
 
-        $this->transitionByUlid($queueUlid, AgentTaskRunUnit::STATUS_SUCCESS, 'success_total');
+        return $this->transitionByUlid($queueUlid, AgentTaskRunUnit::STATUS_SUCCESS, 'success_total');
     }
 
-    public function markUnitFailedByUlid(string $queueUlid, ?string $error = null): void
+    /**
+     * Record an authoritative failure for a unit. Returns true only on the
+     * transition that actually moves the unit into FAILED, so callers can fire
+     * exactly one notification per device even if invoked more than once.
+     */
+    public function markUnitFailedByUlid(string $queueUlid, ?string $error = null): bool
     {
         if (! $this->tablesAvailable()) {
-            return;
+            return false;
         }
 
-        $this->transitionByUlid($queueUlid, AgentTaskRunUnit::STATUS_FAILED, 'failed_total', $error);
+        return $this->transitionByUlid($queueUlid, AgentTaskRunUnit::STATUS_FAILED, 'failed_total', $error);
     }
 
     public function markTimedOutUnits(string $runId, int $timeoutSeconds): int
@@ -136,24 +141,40 @@ class RunTrackerService
         $tracker->save();
     }
 
-    private function transitionByUlid(string $queueUlid, int $toStatus, string $counterField, ?string $error = null): void
+    private function transitionByUlid(string $queueUlid, int $toStatus, string $counterField, ?string $error = null): bool
     {
         $unit = AgentTaskRunUnit::where('queue_ulid', $queueUlid)->first();
 
-        if (! $unit || $unit->status !== AgentTaskRunUnit::STATUS_PENDING) {
-            return;
+        // Only a PENDING unit (first result) or one previously marked with the
+        // speculative TIMEOUT may transition — an authoritative agent result
+        // supersedes a TIMEOUT. SUCCESS/FAILED are terminal and never re-transition.
+        if (! $unit || ! in_array($unit->status, [AgentTaskRunUnit::STATUS_PENDING, AgentTaskRunUnit::STATUS_TIMEOUT], true)) {
+            return false;
         }
+
+        $fromStatus = $unit->status;
 
         $unit->status = $toStatus;
         $unit->last_error = $error;
         $unit->ended_at = now();
         $unit->save();
 
-        AgentTaskRunTracker::where('run_id', $unit->run_id)->update([
-            'pending_total' => DB::raw('GREATEST(pending_total - 1, 0)'),
+        $counters = [
             $counterField => DB::raw($counterField . ' + 1'),
             'updated_at' => now(),
-        ]);
+        ];
+
+        // pending_total was already decremented when the unit first left PENDING;
+        // when superseding a TIMEOUT, roll back the timeout tally instead.
+        if ($fromStatus === AgentTaskRunUnit::STATUS_PENDING) {
+            $counters['pending_total'] = DB::raw('GREATEST(pending_total - 1, 0)');
+        } elseif ($fromStatus === AgentTaskRunUnit::STATUS_TIMEOUT) {
+            $counters['timeout_total'] = DB::raw('GREATEST(timeout_total - 1, 0)');
+        }
+
+        AgentTaskRunTracker::where('run_id', $unit->run_id)->update($counters);
+
+        return true;
     }
 
     private function tablesAvailable(): bool
