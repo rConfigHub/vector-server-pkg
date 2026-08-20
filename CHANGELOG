@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.3.2] – 2026-08-20
+- closes RCO-1310 Device backup timeouts fired early on agent connected devices. The Device Connection Failure notification is now event driven, raised at the authoritative agent failure once retries are exhausted, instead of by the server side timeout watchdog which false positived on large agent fleets.
+- An authoritative agent result now supersedes a unit previously marked with the speculative `TIMEOUT` status, and the run tracker counters are corrected when it does. `SUCCESS` and `FAILED` remain terminal, and `markUnitFailedByUlid` / `markUnitSuccessByUlid` now return whether they performed the transition so a notification fires exactly once per device.
+- Failure notifications are dispatched outside the database transaction so mail dispatch no longer holds the queue row lock.
+- Added `task_unit_timeout_seconds` (default 300) and `task_run_wait_timeout_seconds` (default 900) to `config/vector-server.php`, overridable with `VECTOR_TASK_UNIT_TIMEOUT_SECONDS` and `VECTOR_TASK_RUN_WAIT_TIMEOUT_SECONDS`.
+
 ## [1.3.1] – 2026-06-25
 - Fix Job retry logic and run cic on config download
 
