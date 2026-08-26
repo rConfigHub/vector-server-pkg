@@ -3,8 +3,10 @@
 namespace Rconfig\VectorServer\Console\Commands;
 
 use App\Models\Device;
+use App\Models\Setting;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 
 use function Laravel\Prompts\search;
 
@@ -88,7 +90,12 @@ class VectorSshCmd extends Command
 
         $logger = $this->option('log') ? $this->startSessionLog($device, $username) : null;
 
-        $this->pipe($socket, $logger);
+        $idleTimeout = $this->sshIdleTimeoutSeconds();
+        if ($idleTimeout > 0) {
+            $this->line('Idle timeout: ' . ($idleTimeout / 60) . ' min.');
+        }
+
+        $this->pipe($socket, $logger, $idleTimeout);
 
         $logger?->close();
         fclose($socket);
@@ -297,14 +304,18 @@ class VectorSshCmd extends Command
     /**
      * Pump bytes between this terminal and the hub until either side closes.
      * When a logger is supplied, the rendered device output is also recorded.
+     * When idleTimeout > 0, the session is closed after that many seconds with
+     * no traffic in either direction.
      *
      * @param  resource  $socket
      */
-    private function pipe($socket, ?SshSessionLogger $logger = null): void
+    private function pipe($socket, ?SshSessionLogger $logger = null, int $idleTimeout = 0): void
     {
         $stdin = fopen('php://stdin', 'r');
         stream_set_blocking($stdin, false);
         $this->makeTerminalRaw();
+
+        $lastActivity = time();
 
         while (true) {
             $read = [$socket, $stdin];
@@ -313,6 +324,19 @@ class VectorSshCmd extends Command
             if (@stream_select($read, $write, $except, 1) === false) {
                 break; // interrupted (e.g. window resize signal)
             }
+
+            // No stream became ready this tick — check the idle deadline.
+            if (empty($read)) {
+                if ($this->idleExceeded($lastActivity, $idleTimeout, time())) {
+                    fwrite(STDOUT, "\r\n[session closed after " . (int) ($idleTimeout / 60) . ' min idle]' . "\r\n");
+
+                    return;
+                }
+
+                continue;
+            }
+
+            $lastActivity = time();
 
             foreach ($read as $stream) {
                 if ($stream === $socket) {
@@ -335,6 +359,30 @@ class VectorSshCmd extends Command
                 }
             }
         }
+    }
+
+    /** Idle timeout (seconds) for a session; 0 disables it. Configurable in Settings/Hub. */
+    protected function sshIdleTimeoutSeconds(): int
+    {
+        $minutes = 5;
+        try {
+            if (Schema::hasColumn('settings', 'vector_ssh_idle_timeout')) {
+                $raw = Setting::query()->value('vector_ssh_idle_timeout');
+                if ($raw !== null) {
+                    $minutes = max(0, (int) $raw);
+                }
+            }
+        } catch (\Throwable $e) {
+            // fall back to the 5-minute default
+        }
+
+        return $minutes * 60;
+    }
+
+    /** Whether a session has been idle at least timeoutSeconds (0 = never). */
+    protected function idleExceeded(int $lastActivity, int $timeoutSeconds, int $now): bool
+    {
+        return $timeoutSeconds > 0 && ($now - $lastActivity) >= $timeoutSeconds;
     }
 
     /**

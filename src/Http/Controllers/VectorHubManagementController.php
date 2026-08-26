@@ -3,8 +3,10 @@
 namespace Rconfig\VectorServer\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Models\Setting;
 use App\Traits\RespondsWithHttpStatus;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 use Rconfig\VectorServer\Jobs\HubServiceActionJob;
 use Rconfig\VectorServer\Jobs\InstallVectorHubJob;
 use Rconfig\VectorServer\Jobs\SyncHubCertsJob;
@@ -72,7 +74,47 @@ class VectorHubManagementController extends Controller
             'api_url' => config('vector-server.hub.api_url'),
             'tunnel_url' => config('vector-server.hub.tunnel_url'),
             'app_url' => config('app.url'),
+            'ssh_idle_timeout' => $this->sshIdleTimeout(),
         ]);
+    }
+
+    /** Interactive-SSH idle timeout in minutes (0 = never); 5 if unset. */
+    private function sshIdleTimeout(): int
+    {
+        try {
+            if (Schema::hasColumn('settings', 'vector_ssh_idle_timeout')) {
+                $raw = Setting::query()->value('vector_ssh_idle_timeout');
+                if ($raw !== null) {
+                    return max(0, (int) $raw);
+                }
+            }
+        } catch (\Throwable $e) {
+            // fall through to the default
+        }
+
+        return 5;
+    }
+
+    /**
+     * Set the interactive-SSH idle timeout (minutes; 0 disables it). Persisted
+     * on the global settings row so both the Hub page and the Settings page —
+     * and the vector:ssh CLI — read one value.
+     */
+    public function setSshTimeout(Request $request)
+    {
+        $this->authorize('agent.update');
+
+        $validated = $request->validate([
+            'minutes' => ['required', 'integer', 'min:0', 'max:1440'],
+        ]);
+
+        $setting = Setting::query()->first();
+        if ($setting) {
+            $setting->vector_ssh_idle_timeout = $validated['minutes'];
+            $setting->save();
+        }
+
+        return $this->successResponse('SSH idle timeout updated.', ['ssh_idle_timeout' => (int) $validated['minutes']]);
     }
 
     /**
@@ -80,7 +122,7 @@ class VectorHubManagementController extends Controller
      * status — so the UI can show connected agents AND ones that are enabled
      * but not connected, or not yet enabled (with an Enable action).
      */
-    public function agents(VectorHubClient $hub)
+    public function agents(Request $request, VectorHubClient $hub)
     {
         $this->authorize('agent.view');
 
@@ -94,24 +136,42 @@ class VectorHubManagementController extends Controller
             }
         }
 
-        $agents = Agent::query()
+        $perPage = min(100, max(5, (int) $request->integer('perPage', 15)));
+        $search = trim((string) $request->query('q', ''));
+
+        $paginator = Agent::query()
+            ->where('id', '>', 1) // hide the default vector-server agent (id 1)
+            ->when($search !== '', fn ($q) => $q->where(function ($w) use ($search) {
+                $w->where('name', 'like', "%{$search}%")
+                    ->orWhere('id', 'like', "%{$search}%");
+            }))
+            ->orderByDesc('live_channel_enabled') // enabled agents first, then disabled
             ->orderBy('name')
-            ->get(['id', 'name', 'live_channel_enabled'])
-            ->map(function ($agent) use ($connected) {
-                $c = $connected[$agent->id] ?? null;
+            ->paginate($perPage, ['id', 'name', 'live_channel_enabled']);
 
-                return [
-                    'id' => $agent->id,
-                    'name' => $agent->name,
-                    'live_channel_enabled' => (bool) $agent->live_channel_enabled,
-                    'connected' => $c !== null,
-                    'rtt_ms' => $c['rtt_ms'] ?? null,
-                    'connected_at' => $c['connected_at'] ?? null,
-                    'last_seen' => $c['last_seen'] ?? null,
-                ];
-            });
+        $agents = collect($paginator->items())->map(function ($agent) use ($connected) {
+            $c = $connected[$agent->id] ?? null;
 
-        return $this->successResponse('Vector Hub agents', ['agents' => $agents]);
+            return [
+                'id' => $agent->id,
+                'name' => $agent->name,
+                'live_channel_enabled' => (bool) $agent->live_channel_enabled,
+                'connected' => $c !== null,
+                'rtt_ms' => $c['rtt_ms'] ?? null,
+                'connected_at' => $c['connected_at'] ?? null,
+                'last_seen' => $c['last_seen'] ?? null,
+            ];
+        });
+
+        return $this->successResponse('Vector Hub agents', [
+            'agents' => $agents,
+            'pagination' => [
+                'total' => $paginator->total(),
+                'per_page' => $paginator->perPage(),
+                'current_page' => $paginator->currentPage(),
+                'last_page' => $paginator->lastPage(),
+            ],
+        ]);
     }
 
     /**

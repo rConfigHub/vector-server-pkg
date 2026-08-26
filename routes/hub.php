@@ -11,4 +11,5 @@ Route::post('vector-hub/install', [VectorHubManagementController::class, 'instal
 Route::post('vector-hub/uninstall', [VectorHubManagementController::class, 'uninstall']);
 Route::post('vector-hub/service/restart', [VectorHubManagementController::class, 'restartService']);
 Route::post('vector-hub/resync-certs', [VectorHubManagementController::class, 'resyncCerts']);
+Route::post('vector-hub/ssh-timeout', [VectorHubManagementController::class, 'setSshTimeout']);
 Route::get('vector-hub/install/{id}', [VectorHubManagementController::class, 'installStatus']);
