@@ -5,9 +5,11 @@ namespace Rconfig\VectorServer\Http\Controllers;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\QueryFilters\QueryFilterMultipleFields;
 use App\Models\Device;
+use App\Services\Notifications\AgentDeviceDownloadCompletedNotifier;
 use App\Services\Notifications\AgentDeviceFailureNotifier;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 use Rconfig\VectorServer\Models\Agent;
 use Rconfig\VectorServer\Models\AgentQueue;
 use Rconfig\VectorServer\Services\AgentTaskRuns\RunTrackerService;
@@ -94,6 +96,8 @@ class AgentQueueController extends Controller
             return response()->json(['error' => 'Job not found'], 422);
         }
 
+        $alreadyProcessed = (bool) $job->processed;
+
         $job->processed = 1;
         $job->save();
 
@@ -101,6 +105,11 @@ class AgentQueueController extends Controller
 
         // Update device status since a job was successfully processed
         $this->updateDeviceStatus($job->device_id, 1);
+
+        // A manual "download now" against an agent device is only queued in
+        // DownloadConfigNowJob and reports completion here, when the agent actually
+        // uploads the config, instead of at dispatch time (RCO-1253 #4).
+        $this->notifyManualDownloadCompleted($job, $alreadyProcessed);
 
         // obfuscate the connection params
         // Check if connection_params is already an array (auto-cast) or a string
@@ -160,6 +169,53 @@ class AgentQueueController extends Controller
     private function updateDeviceStatus($deviceId, $status)
     {
         Device::where('id', $deviceId)->update(['status' => $status]);
+    }
+
+    /**
+     * Fire the manual config-download completion notification for an agent device.
+     *
+     * Only manual "download now" jobs trigger this: those carry no task_run_id, whereas
+     * scheduled task runs report completion through their own task pipeline and must not
+     * raise a per-device download email. A manual download can span several queue rows
+     * (one per command), so this only fires once the device has no unprocessed manual
+     * rows left, and never on a repeated callback for an already-processed row. Delegates
+     * to the host app notifier when present so the package still runs standalone.
+     */
+    private function notifyManualDownloadCompleted(AgentQueue $job, bool $alreadyProcessed): void
+    {
+        if ($alreadyProcessed) {
+            return;
+        }
+
+        // Without the task-tracking column we cannot tell manual from scheduled, so stay
+        // quiet rather than risk emailing on every scheduled agent backup.
+        if (! Schema::hasColumn('agent_queues', 'task_run_id') || $job->task_run_id !== null) {
+            return;
+        }
+
+        // Wait until every command row for this manual download has been processed, so a
+        // multi-command device produces a single completion notification. Failed rows
+        // (retry_failed = 1, incl. stale rows the cleanup marks) are excluded: otherwise a
+        // single abandoned manual row would block the completion of every later manual
+        // download for that device indefinitely.
+        $manualRowsPending = AgentQueue::where('device_id', $job->device_id)
+            ->whereNull('task_run_id')
+            ->where('processed', 0)
+            ->where('retry_failed', 0)
+            ->exists();
+
+        if ($manualRowsPending) {
+            return;
+        }
+
+        $notifierClass = AgentDeviceDownloadCompletedNotifier::class;
+        if (! class_exists($notifierClass)) {
+            return;
+        }
+
+        $seconds = $job->created_at ? round(abs(now()->diffInSeconds($job->created_at)), 2) : null;
+
+        (new $notifierClass)->notifyDeviceDownloadCompleted((int) $job->device_id, $seconds);
     }
 
     public function get_unprocessed(Request $request)
