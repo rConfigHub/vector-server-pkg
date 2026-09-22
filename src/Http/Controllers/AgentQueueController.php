@@ -85,6 +85,10 @@ class AgentQueueController extends Controller
             ->where('agent_id', $agent->id)
             ->get();
 
+        // Start the per-unit timeout clock now that the agent has actually pulled these jobs,
+        // so agent poll latency is not charged against the execution budget (RCO-1250 item 2).
+        (new RunTrackerService)->markUnitsClaimed($jobs->pluck('ulid')->all());
+
         return response()->json(array_values($jobs->toArray()));
     }
 

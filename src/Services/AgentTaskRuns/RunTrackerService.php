@@ -46,6 +46,35 @@ class RunTrackerService
         $tracker->increment('pending_total');
     }
 
+    /**
+     * Stamp claimed_at on the units the agent has just pulled, once. started_at stays the
+     * enqueue time (kept for diagnostics); the per-unit timeout is measured from claimed_at
+     * (see markTimedOutUnits), so this is what stops agent poll latency being charged against
+     * the execution budget (RCO-1250 item 2). Idempotent - a unit already claimed keeps its
+     * original claim time across the agent's repeated polls, and only still-PENDING units are
+     * stamped so a late re-poll cannot disturb a resolved unit.
+     *
+     * @param  array<int, string>  $queueUlids
+     * @return int Number of units newly marked as claimed.
+     */
+    public function markUnitsClaimed(array $queueUlids): int
+    {
+        if (! $this->tablesAvailable()) {
+            return 0;
+        }
+
+        $queueUlids = array_values(array_filter($queueUlids));
+
+        if ($queueUlids === []) {
+            return 0;
+        }
+
+        return AgentTaskRunUnit::whereIn('queue_ulid', $queueUlids)
+            ->whereNull('claimed_at')
+            ->where('status', AgentTaskRunUnit::STATUS_PENDING)
+            ->update(['claimed_at' => now()]);
+    }
+
     public function markUnitSuccessByUlid(string $queueUlid): bool
     {
         if (! $this->tablesAvailable()) {
@@ -81,9 +110,13 @@ class RunTrackerService
 
         $threshold = Carbon::now()->subSeconds($timeoutSeconds);
 
+        // Measure from claimed_at (when the agent pulled the job) so agent poll latency is
+        // not charged against the execution budget. Units not yet claimed fall back to
+        // started_at (enqueue time), so a job the agent never picks up still times out and
+        // the run-cap force-timeout keeps working (RCO-1250 item 2).
         $units = AgentTaskRunUnit::where('run_id', $runId)
             ->where('status', AgentTaskRunUnit::STATUS_PENDING)
-            ->where('started_at', '<=', $threshold)
+            ->whereRaw('COALESCE(claimed_at, started_at) <= ?', [$threshold->toDateTimeString()])
             ->get();
 
         if ($units->isEmpty()) {
@@ -100,8 +133,8 @@ class RunTrackerService
         }
 
         AgentTaskRunTracker::where('run_id', $runId)->update([
-            'pending_total' => DB::raw('GREATEST(pending_total - ' . $count . ', 0)'),
-            'timeout_total' => DB::raw('timeout_total + ' . $count),
+            'pending_total' => DB::raw('GREATEST(pending_total - '.$count.', 0)'),
+            'timeout_total' => DB::raw('timeout_total + '.$count),
             'updated_at' => now(),
         ]);
 
@@ -160,7 +193,7 @@ class RunTrackerService
         $unit->save();
 
         $counters = [
-            $counterField => DB::raw($counterField . ' + 1'),
+            $counterField => DB::raw($counterField.' + 1'),
             'updated_at' => now(),
         ];
 
