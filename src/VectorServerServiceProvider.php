@@ -17,6 +17,8 @@ use Rconfig\VectorServer\Http\Middleware\AgentAttachId;
 use Rconfig\VectorServer\Http\Middleware\AgentCheckApiSyncAccess;
 use Rconfig\VectorServer\Http\Middleware\AgentEnforceHttps;
 use Rconfig\VectorServer\Http\Middleware\VectorHubCheckAccess;
+use Rconfig\VectorServer\Models\AgentQueue;
+use Rconfig\VectorServer\Observers\AgentQueueObserver;
 use Rconfig\VectorServer\Services\AgentQueue\QueueHandler;
 
 class VectorServerServiceProvider extends ServiceProvider
@@ -39,24 +41,27 @@ class VectorServerServiceProvider extends ServiceProvider
         $this->publishConfig();
         $this->publishViews();
         $this->ensureViewsPublished();
-        $this->loadViewsFrom(__DIR__.'/../resources/views', 'vector-server');
+        $this->loadViewsFrom(__DIR__ . '/../resources/views', 'vector-server');
         $this->registerRoutes();
         $this->loadMiddleware();
         $this->registerCommands();
         $this->loadMigrations();
         $this->publishTests();
         $this->loadScheduler();
+
+        // Push newly-enqueued jobs to live-channel agents immediately (RCO-1155).
+        AgentQueue::observe(AgentQueueObserver::class);
     }
 
     protected function registerConfig()
     {
         $this->mergeConfigFrom(
-            __DIR__.'/../config/vector-server.php',
+            __DIR__ . '/../config/vector-server.php',
             'vector-server'
         );
 
         $this->mergeConfigFrom(
-            __DIR__.'/../config/central_manager.php',
+            __DIR__ . '/../config/central_manager.php',
             'central_manager'
         );
     }
@@ -64,28 +69,28 @@ class VectorServerServiceProvider extends ServiceProvider
     protected function publishConfig()
     {
         $this->publishes([
-            __DIR__.'/../config/vector-server.php' => config_path('vector-server.php'),
+            __DIR__ . '/../config/vector-server.php' => config_path('vector-server.php'),
         ], 'config');
 
         $this->publishes([
-            __DIR__.'/../config/central_manager.php' => config_path('central_manager.php'),
+            __DIR__ . '/../config/central_manager.php' => config_path('central_manager.php'),
         ], 'vector-central-manager-config');
     }
 
     protected function publishViews()
     {
         $this->publishes([
-            __DIR__.'/../resources/views' => resource_path('views/vendor/vector-server'),
+            __DIR__ . '/../resources/views' => resource_path('views/vendor/vector-server'),
         ], 'vector-server-views');
     }
 
     protected function ensureViewsPublished(): void
     {
         $targetDir = resource_path('views/vendor/vector-server');
-        $targetFile = $targetDir.'/vector/install.sh.blade.php';
+        $targetFile = $targetDir . '/vector/install.sh.blade.php';
 
-        $sourceDir = __DIR__.'/../resources/views';
-        $sourceFile = $sourceDir.'/vector/install.sh.blade.php';
+        $sourceDir = __DIR__ . '/../resources/views';
+        $sourceFile = $sourceDir . '/vector/install.sh.blade.php';
 
         if (! is_file($sourceFile)) {
             return;
@@ -114,18 +119,18 @@ class VectorServerServiceProvider extends ServiceProvider
         }
 
         Route::group([], function () {
-            $this->loadRoutesFrom(__DIR__.'/../routes/public_install.php');
-            $this->loadRoutesFrom(__DIR__.'/../routes/public_downloads.php');
+            $this->loadRoutesFrom(__DIR__ . '/../routes/public_install.php');
+            $this->loadRoutesFrom(__DIR__ . '/../routes/public_downloads.php');
         });
 
         Route::prefix('api')->group(function () {
-            $this->loadRoutesFrom(__DIR__.'/../routes/api_agent_bootstrap.php');
+            $this->loadRoutesFrom(__DIR__ . '/../routes/api_agent_bootstrap.php');
         });
 
         Route::group([
             'middleware' => ['agent.enforce.https', 'agent.check.api.sync.access', 'cors'],
         ], function () {
-            $this->loadRoutesFrom(__DIR__.'/../routes/api_agentsync.php');
+            $this->loadRoutesFrom(__DIR__ . '/../routes/api_agentsync.php');
         });
 
         // Vector Hub callbacks (RCO-744) — shared-secret protected, called
@@ -133,21 +138,21 @@ class VectorServerServiceProvider extends ServiceProvider
         Route::group([
             'middleware' => ['vectorhub.check.access'],
         ], function () {
-            $this->loadRoutesFrom(__DIR__.'/../routes/api_vectorhub.php');
+            $this->loadRoutesFrom(__DIR__ . '/../routes/api_vectorhub.php');
         });
 
         // Web Api Routes with nameSpace (Api) removed
         Route::prefix('api')->middleware(['api', 'auth:sanctum'])->group(function () {
-            $this->loadRoutesFrom(__DIR__.'/../routes/agents.php');
-            $this->loadRoutesFrom(__DIR__.'/../routes/agentlog.php');
-            $this->loadRoutesFrom(__DIR__.'/../routes/agentqueue.php');
-            $this->loadRoutesFrom(__DIR__.'/../routes/hub.php');
+            $this->loadRoutesFrom(__DIR__ . '/../routes/agents.php');
+            $this->loadRoutesFrom(__DIR__ . '/../routes/agentlog.php');
+            $this->loadRoutesFrom(__DIR__ . '/../routes/agentqueue.php');
+            $this->loadRoutesFrom(__DIR__ . '/../routes/hub.php');
         });
 
         // Public REST API v2 — token-authenticated. Used by runbooks/automation
         // to provision agents without an SPA session.
         Route::prefix('api/v2')->middleware(['apiv2auth', 'cors'])->group(function () {
-            $this->loadRoutesFrom(__DIR__.'/../routes/api_v2_agents.php');
+            $this->loadRoutesFrom(__DIR__ . '/../routes/api_v2_agents.php');
         });
     }
 
@@ -180,7 +185,7 @@ class VectorServerServiceProvider extends ServiceProvider
 
     protected function loadMigrations()
     {
-        $this->loadMigrationsFrom(__DIR__.'/../database/migrations');
+        $this->loadMigrationsFrom(__DIR__ . '/../database/migrations');
     }
 
     protected function publishTests()

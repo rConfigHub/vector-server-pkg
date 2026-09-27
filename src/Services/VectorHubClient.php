@@ -103,6 +103,24 @@ class VectorHubClient
         return $response->json();
     }
 
+    /**
+     * Ask the hub to tell an agent to pick up its queued jobs now, over the
+     * live channel — so work starts immediately instead of waiting for the
+     * agent's next poll tick.
+     *
+     * @return array<string, mixed>|null Hub response, or null if the agent is
+     *                                   not connected or the hub is unreachable.
+     */
+    public function pollAgent(int|string $agentId): ?array
+    {
+        $response = $this->rescue(fn () => $this->request()->post($this->url('/agents/' . $agentId . '/poll')));
+        if (! $response || ! $response->successful()) {
+            return null;
+        }
+
+        return $response->json();
+    }
+
     public function health(): bool
     {
         $response = $this->rescue(fn () => $this->request()->get($this->url('/health')));
