@@ -10,6 +10,13 @@ return [
     // Increase if templates use high timeouts (e.g. 120s × 3 retries ≈ 6 min → set to 15+).
     'stale_job_timeout_minutes' => env('VECTOR_STALE_JOB_TIMEOUT_MINUTES', 10),
 
+    // Per-device timeout for the agent-run watchdog (TaskDownloadCmd::waitForAgentRunCompletion).
+    'task_unit_timeout_seconds' => env('VECTOR_TASK_UNIT_TIMEOUT_SECONDS', 300),
+
+    // Overall cap the watchdog waits for a run before force-timing-out any remaining
+    // pending units. Should be >= task_unit_timeout_seconds.
+    'task_run_wait_timeout_seconds' => env('VECTOR_TASK_RUN_WAIT_TIMEOUT_SECONDS', 900),
+
     // Vector Hub (RCO-744 live channel). Unset hub.api_url disables the
     // integration entirely; nothing that works today depends on it.
     'hub' => [
