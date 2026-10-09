@@ -15,7 +15,7 @@ use Rconfig\VectorServer\Models\AgentLog;
 use Rconfig\VectorServer\Services\SshSessionLogger;
 
 /**
- * Opens an interactive SSH session to a device *through its Vector Agent*
+ * Opens an interactive Vector Access session to a device *through its Vector Agent*
  * (RCO-1155), over the live channel — no inbound access to the device or the
  * agent required.
  *
@@ -26,10 +26,10 @@ use Rconfig\VectorServer\Services\SshSessionLogger;
  */
 class VectorSshCmd extends Command
 {
-    protected $signature = 'vector:ssh
+    protected $signature = 'vector:access
         {device? : Device id or name; omit to pick interactively}
         {--log : Record this session (device, agent, and full transcript) to storage/logs/vector-ssh}';
-    protected $description = 'Open an interactive SSH session to a device through its Vector Agent';
+    protected $description = 'Open an interactive Vector Access session to a device through its Vector Agent';
 
     /** Original terminal settings, restored on exit. */
     private ?string $sttyState = null;
@@ -82,7 +82,7 @@ class VectorSshCmd extends Command
         fwrite($socket, json_encode($header) . "\n");
 
         $this->line("Connecting to {$device->device_name} ({$device->device_ip}) via agent {$device->agent_id}... press Ctrl-D or exit to end.");
-        Log::info('vector:ssh session started', [
+        Log::info('vector:access session started', [
             'device_id' => $device->id,
             'agent_id' => $device->agent_id,
             'user' => get_current_user(),
@@ -102,7 +102,7 @@ class VectorSshCmd extends Command
         $this->restoreTerminal();
         $this->newLine();
         $this->info('Session ended.');
-        Log::info('vector:ssh session ended', ['device_id' => $device->id]);
+        Log::info('vector:access session ended', ['device_id' => $device->id]);
         if ($logger) {
             $this->line("Session transcript saved to {$logger->path()}");
         }
@@ -134,13 +134,13 @@ class VectorSshCmd extends Command
             // Logging is best-effort — never block a session because the
             // transcript file could not be opened.
             $this->warn('Could not start session logging: ' . $e->getMessage());
-            Log::warning('vector:ssh session logging failed to start', ['device_id' => $device->id, 'error' => $e->getMessage()]);
+            Log::warning('vector:access session logging failed to start', ['device_id' => $device->id, 'error' => $e->getMessage()]);
 
             return null;
         }
 
         $this->line("Session logging enabled → {$logger->path()}");
-        Log::info('vector:ssh session logging enabled', [
+        Log::info('vector:access session logging enabled', [
             'device_id' => $device->id,
             'agent_id' => $device->agent_id,
             'operator' => $operator,
@@ -151,7 +151,7 @@ class VectorSshCmd extends Command
             'agent_id' => $device->agent_id,
             'executed_at' => now(),
             'log_level' => 'INFO',
-            'message' => "Logged SSH session opened to {$device->device_name} ({$device->device_ip}) by {$operator}",
+            'message' => "Logged Vector Access session opened to {$device->device_name} ({$device->device_ip}) by {$operator}",
             'operation' => 'live_ssh_session_logged',
             'entity_type' => 'Device',
             'entity_id' => $device->id,

@@ -98,7 +98,7 @@ class VectorHubManagementController extends Controller
     /**
      * Set the interactive-SSH idle timeout (minutes; 0 disables it). Persisted
      * on the global settings row so both the Hub page and the Settings page —
-     * and the vector:ssh CLI — read one value.
+     * and the vector:access CLI — read one value.
      */
     public function setSshTimeout(Request $request)
     {

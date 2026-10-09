@@ -3,7 +3,7 @@
 namespace Rconfig\VectorServer\Services;
 
 /**
- * Records an interactive `vector:ssh` session (RCO-1155) to a transcript file
+ * Records an interactive `vector:access` session (RCO-1155) to a transcript file
  * when the operator opts in with --log. Writes a metadata header (which device
  * and agent, which operator, when) followed by the rendered session stream.
  *
@@ -92,7 +92,7 @@ class SshSessionLogger
         }
 
         $header = [
-            '# rConfig Vector SSH session transcript',
+            '# rConfig Vector Access session transcript',
             '# started_at:   ' . now()->toIso8601String(),
             '# operator:     ' . ($meta['operator'] ?? 'unknown'),
             '# agent:        ' . $meta['agent_id'] . ' ' . ($meta['agent_name'] ?? ''),
