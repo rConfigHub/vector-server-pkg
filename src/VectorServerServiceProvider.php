@@ -9,11 +9,16 @@ use Illuminate\Support\ServiceProvider;
 use Rconfig\VectorServer\CentralManager\CentralManagerGate;
 use Rconfig\VectorServer\Console\Commands\VectorAgentDownloadBinary;
 use Rconfig\VectorServer\Console\Commands\VectorCleanupStaleJobs;
+use Rconfig\VectorServer\Console\Commands\VectorHubSyncStatusCmd;
 use Rconfig\VectorServer\Console\Commands\VectorMonitorAgentCheckIns;
 use Rconfig\VectorServer\Console\Commands\VectorSideloadAgentBinariesCmd;
+use Rconfig\VectorServer\Console\Commands\VectorSshCmd;
 use Rconfig\VectorServer\Http\Middleware\AgentAttachId;
 use Rconfig\VectorServer\Http\Middleware\AgentCheckApiSyncAccess;
 use Rconfig\VectorServer\Http\Middleware\AgentEnforceHttps;
+use Rconfig\VectorServer\Http\Middleware\VectorHubCheckAccess;
+use Rconfig\VectorServer\Models\AgentQueue;
+use Rconfig\VectorServer\Observers\AgentQueueObserver;
 use Rconfig\VectorServer\Services\AgentQueue\QueueHandler;
 
 class VectorServerServiceProvider extends ServiceProvider
@@ -43,6 +48,9 @@ class VectorServerServiceProvider extends ServiceProvider
         $this->loadMigrations();
         $this->publishTests();
         $this->loadScheduler();
+
+        // Push newly-enqueued jobs to live-channel agents immediately (RCO-1155).
+        AgentQueue::observe(AgentQueueObserver::class);
     }
 
     protected function registerConfig()
@@ -125,11 +133,20 @@ class VectorServerServiceProvider extends ServiceProvider
             $this->loadRoutesFrom(__DIR__ . '/../routes/api_agentsync.php');
         });
 
+        // Vector Hub callbacks (RCO-744) — shared-secret protected, called
+        // only by the hub process itself.
+        Route::group([
+            'middleware' => ['vectorhub.check.access'],
+        ], function () {
+            $this->loadRoutesFrom(__DIR__ . '/../routes/api_vectorhub.php');
+        });
+
         // Web Api Routes with nameSpace (Api) removed
         Route::prefix('api')->middleware(['api', 'auth:sanctum'])->group(function () {
             $this->loadRoutesFrom(__DIR__ . '/../routes/agents.php');
             $this->loadRoutesFrom(__DIR__ . '/../routes/agentlog.php');
             $this->loadRoutesFrom(__DIR__ . '/../routes/agentqueue.php');
+            $this->loadRoutesFrom(__DIR__ . '/../routes/hub.php');
         });
 
         // Public REST API v2 — token-authenticated. Used by runbooks/automation
@@ -146,6 +163,7 @@ class VectorServerServiceProvider extends ServiceProvider
         $router->aliasMiddleware('agent.enforce.https', AgentEnforceHttps::class);
         $router->aliasMiddleware('agent.attach.id', AgentAttachId::class);
         $router->aliasMiddleware('agent.check.api.sync.access', AgentCheckApiSyncAccess::class);
+        $router->aliasMiddleware('vectorhub.check.access', VectorHubCheckAccess::class);
     }
 
     protected function registerCommands()
@@ -154,6 +172,8 @@ class VectorServerServiceProvider extends ServiceProvider
             VectorAgentDownloadBinary::class,
             VectorSideloadAgentBinariesCmd::class,
             VectorCleanupStaleJobs::class,
+            VectorHubSyncStatusCmd::class,
+            VectorSshCmd::class,
         ]);
 
         if ($this->app->runningInConsole()) {
@@ -180,5 +200,6 @@ class VectorServerServiceProvider extends ServiceProvider
         $schedule = $this->app->make(Schedule::class);
         $schedule->command('vector:agent-checkins')->everyMinute();
         $schedule->command('vector:cleanup-stale-jobs')->everyFiveMinutes();
+        $schedule->command('vector:hub-sync-status')->everyMinute();
     }
 }

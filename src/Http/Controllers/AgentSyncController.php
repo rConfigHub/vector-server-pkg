@@ -22,12 +22,12 @@ class AgentSyncController extends Controller
     {
         $this->agent = Agent::where('id', app('agent_id'))->first();
 
-        if (!$this->agent) {
+        if (! $this->agent) {
             return response()->json(['error' => 'Agent not found'], 404);
         }
 
         // Check if agent is admin disabled
-        if (!$this->agent->is_admin_enabled) {
+        if (! $this->agent->is_admin_enabled) {
             return response()->json(['error' => 'Agent is disabled by admin'], 403);
         }
 
@@ -60,6 +60,13 @@ class AgentSyncController extends Controller
         $response = $this->agent->makeHidden(['srcip', 'api_token']);
         $response = $response->toArray();
         $response['device_checksum'] = $deviceChecksum;
+        // Live channel bootstrap (RCO-744): same trick as the restart
+        // signal — desired state rides the existing poll, no new inbound
+        // path to the agent.
+        $response['live_channel'] = [
+            'enabled' => (bool) $this->agent->live_channel_enabled,
+            'hub_url' => config('vector-server.hub.tunnel_url'),
+        ];
 
         return response()->json($response);
     }
@@ -98,7 +105,7 @@ class AgentSyncController extends Controller
             'operation' => 'agent_checkin',
             'context_data' => json_encode([
                 'was_recovering' => $wasRecovering,
-                'missed_checkins_reset' => true
+                'missed_checkins_reset' => true,
             ]),
             'entity_type' => 'AgentSyncController',
             'entity_id' => null,
