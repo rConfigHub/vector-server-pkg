@@ -1,11 +1,11 @@
 <?php
 
-namespace  Rconfig\VectorServer\Services\AgentQueue;
+namespace Rconfig\VectorServer\Services\AgentQueue;
 
 use App\Models\Template;
 use App\Services\Connections\Params\DeviceParams;
-use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 use Rconfig\VectorServer\Models\AgentQueue;
 use Rconfig\VectorServer\Services\AgentTaskRuns\RunTrackerService;
 use Symfony\Component\Yaml\Yaml;
@@ -14,13 +14,27 @@ class QueueHandler
 {
     public function create_from_device(array $device, array $taskContext = [])
     {
-        try {
+        $deviceId = $device['id'] ?? null;
+        $commands = $device['commands'] ?? [];
 
+        // No resolvable commands means nothing can be dispatched to the agent. Report it
+        // loudly instead of iterating an empty/undefined key and returning success having
+        // written no rows (RCO-1254 #1).
+        if (! is_array($commands) || $commands === []) {
+            $logmsg = 'No commands to queue for device ID: ' . $deviceId . ' - its category has no commands, so nothing was dispatched to the agent.';
+            activityLogIt(__CLASS__, __FUNCTION__, 'error', $logmsg, 'connection', '', '', 'agent_queue', $deviceId);
+
+            return false;
+        }
+
+        try {
             $template = Template::where('id', $device['device_template'])->first();
             $fileContents = file_get_contents(storage_path() . $template->fileName);
             $yamlContents = Yaml::parse($fileContents);
 
-            foreach ($device['commands'] as $command) {
+            $created = 0;
+
+            foreach ($commands as $command) {
 
                 // convert $device['device_enable_password'] to emptry string if bool or null
                 if (is_bool($device['device_enable_password']) || is_null($device['device_enable_password'])) {
@@ -47,6 +61,7 @@ class QueueHandler
                 }
 
                 AgentQueue::create($queuePayload);
+                $created++;
 
                 if (! empty($taskContext['task_report_id']) && ! empty($taskContext['task_run_id'])) {
                     (new RunTrackerService)->registerExpectedUnit([
@@ -60,16 +75,27 @@ class QueueHandler
                     ]);
                 }
             }
+
+            // N commands in must mean N agent_queues rows out. A mismatch means rows were
+            // silently dropped, so surface it rather than reporting success (RCO-1254 #1).
+            $expected = count($commands);
+            if ($created !== $expected) {
+                $logmsg = 'Agent queue row count mismatch for device ID: ' . $deviceId . " - expected {$expected} rows, wrote {$created}.";
+                activityLogIt(__CLASS__, __FUNCTION__, 'error', $logmsg, 'connection', '', '', 'agent_queue', $deviceId);
+
+                return false;
+            }
         } catch (\Exception $e) {
-            $logmsg =  'Error creating agent queue record for device ID: ' . $device['id'] . ' ' . $e->getMessage();
-            activityLogIt(__CLASS__, __FUNCTION__, 'info', $logmsg, 'connection', '', '', 'agnet_queue', $device['id']);
+            $logmsg = 'Error creating agent queue record for device ID: ' . $deviceId . ' ' . $e->getMessage();
+            activityLogIt(__CLASS__, __FUNCTION__, 'error', $logmsg, 'connection', '', '', 'agent_queue', $deviceId);
+
             return false;
         }
 
         return true;
     }
 
-    function buildConnectionParams(array $yamlContents, array $device, string $command): array
+    public function buildConnectionParams(array $yamlContents, array $device, string $command): array
     {
         // Use DeviceParams to properly resolve device_credentials for the device, if present
         $deviceParams = new DeviceParams($device);
@@ -90,12 +116,12 @@ class QueueHandler
         $connection_params['timeout'] = isset($yamlContents['connect']['timeout']) ? $yamlContents['connect']['timeout'] : 30;
         $connection_params['retry_count'] = isset($yamlContents['connect']['retry_count']) ? $yamlContents['connect']['retry_count'] : 3;
         $connection_params['protocol'] = isset($yamlContents['connect']['protocol']) ? $yamlContents['connect']['protocol'] : 'ssh-agent';
-        $templatePort = isset($yamlContents['connect']['port']) ? (string)$yamlContents['connect']['port'] : '22';
+        $templatePort = isset($yamlContents['connect']['port']) ? (string) $yamlContents['connect']['port'] : '22';
         $connection_params['port'] = ! empty($deviceRecord['device_port_override'])
-            ? (string)$deviceRecord['device_port_override']
+            ? (string) $deviceRecord['device_port_override']
             : $templatePort;
 
-        $connection_params['port'] = isset($yamlContents['connect']['port']) ? (string)$yamlContents['connect']['port'] : '22';
+        $connection_params['port'] = isset($yamlContents['connect']['port']) ? (string) $yamlContents['connect']['port'] : '22';
         $connection_params['retries'] = isset($yamlContents['connect']['retries']) ? $yamlContents['connect']['retries'] : 3;
         $connection_params['isNonInteractiveMode'] = isset($yamlContents['connect']['isNonInteractiveMode']) ? $yamlContents['connect']['isNonInteractiveMode'] : false;
         $connection_params['ctrlYLogin'] = isset($yamlContents['connect']['ctrlYLogin']) && $yamlContents['connect']['ctrlYLogin'] === 'on' ? 'on' : 'off';
