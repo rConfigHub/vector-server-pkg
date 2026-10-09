@@ -4,7 +4,7 @@ namespace Rconfig\VectorServer\Services;
 
 /**
  * Reduces a raw terminal output stream to the text as it finally read on
- * screen, for the `vector:ssh --log` transcript.
+ * screen, for the `vector:access --log` transcript.
  *
  * Instead of merely deleting control bytes (which leaves mistyped characters
  * behind when the operator backspaces over them), this applies simple line
