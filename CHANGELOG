@@ -2,8 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
-## [2.0.0] – 2026-06-25
-- agent bi direnctionality support through the vector hub
+## [2.0.0] – 2026-10-09
+- RCO-744/RCO-1155 Vector Hub: bi-directional agent connectivity via a live channel. Hub API (IP + token auth, status/validation endpoints), `VectorHubClient`, and `vector:hub-sync-status` command.
+- Vector Hub install and management from the UI (`InstallVectorHubJob`, `HubServiceActionJob`, hub routes), with self-healing hub client certificates (`SyncHubCertsJob`).
+- Interactive SSH to agent-connected devices through the hub (`VectorSshCmd`) with session logging and a configurable SSH idle timeout.
+- Live job polling: new agent queue items poke the agent's live channel (`AgentQueueObserver`, `PokeAgentLiveChannelJob`) instead of waiting for the next poll.
+- RCO-1250 Agent unit timeout clock now starts when the agent claims the unit (`claimed_at` column), not when it is queued.
+- RCO-1253 Agent queue/notification hygiene fixes in `AgentQueueController`.
+- RCO-1254 Vector dispatch observability: dispatch failures are now logged and reported instead of silently succeeding.
+- New migrations: agents live channel, hub installs, SSH idle timeout setting, task run unit `claimed_at`. Run `php artisan migrate`.
 
 ## [1.3.2] – 2026-08-20
 - closes RCO-1310 Device backup timeouts fired early on agent connected devices. The Device Connection Failure notification is now event driven, raised at the authoritative agent failure once retries are exhausted, instead of by the server side timeout watchdog which false positived on large agent fleets.
