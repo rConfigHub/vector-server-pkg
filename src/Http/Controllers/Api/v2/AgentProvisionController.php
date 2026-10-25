@@ -13,6 +13,7 @@ use Rconfig\VectorServer\Models\Agent;
 use Rconfig\VectorServer\Models\VectorAgentBootstrapToken;
 use Rconfig\VectorServer\Services\AgentAccess\AgentSourceAllowlistService;
 use Rconfig\VectorServer\Services\BootstrapTokenService;
+use Rconfig\VectorServer\Services\VectorAgentInstaller;
 
 /**
  * @group Agent Provisioning
@@ -30,7 +31,8 @@ class AgentProvisionController extends Controller
     public function provision(
         ProvisionAgentRequest $request,
         BootstrapTokenService $tokenService,
-        AgentSourceAllowlistService $allowlistService
+        AgentSourceAllowlistService $allowlistService,
+        VectorAgentInstaller $installer
     ): JsonResponse {
         $payload = $request->validated();
         $ttlMinutes = (int) ($payload['bootstrap_ttl_minutes'] ?? self::DEFAULT_BOOTSTRAP_TTL_MINUTES);
@@ -103,8 +105,7 @@ class AgentProvisionController extends Controller
         $token = VectorAgentBootstrapToken::where('token_hash', $tokenHash)->first();
         $expiresAt = $token?->expires_at ?? now()->addMinutes($ttlMinutes);
 
-        $serverUrl = $request->getSchemeAndHttpHost();
-        $installCommand = 'curl -kfsSL "' . $serverUrl . '/vector/install.sh?bootstrap_token=' . $rawToken . '" | bash';
+        $install = $installer->payload($request->getHttpHost(), $agent->id, $rawToken, (bool) ($agent->ssl_verify ?? true));
 
         $message = $created
             ? 'Agent provisioned successfully.'
@@ -117,7 +118,9 @@ class AgentProvisionController extends Controller
                 'agent_id' => $agent->id,
                 'name' => $agent->name,
                 'created' => $created,
-                'install_command' => $installCommand,
+                'install_command' => $install['command'],
+                'installer_sha256' => $install['installer_sha256'],
+                'installer_docs_url' => $install['installer_docs_url'],
                 'bootstrap_token' => $rawToken,
                 'expires_at' => $expiresAt,
             ],

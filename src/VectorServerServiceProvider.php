@@ -39,9 +39,6 @@ class VectorServerServiceProvider extends ServiceProvider
     public function boot()
     {
         $this->publishConfig();
-        $this->publishViews();
-        $this->ensureViewsPublished();
-        $this->loadViewsFrom(__DIR__ . '/../resources/views', 'vector-server');
         $this->registerRoutes();
         $this->loadMiddleware();
         $this->registerCommands();
@@ -75,41 +72,6 @@ class VectorServerServiceProvider extends ServiceProvider
         $this->publishes([
             __DIR__ . '/../config/central_manager.php' => config_path('central_manager.php'),
         ], 'vector-central-manager-config');
-    }
-
-    protected function publishViews()
-    {
-        $this->publishes([
-            __DIR__ . '/../resources/views' => resource_path('views/vendor/vector-server'),
-        ], 'vector-server-views');
-    }
-
-    protected function ensureViewsPublished(): void
-    {
-        $targetDir = resource_path('views/vendor/vector-server');
-        $targetFile = $targetDir . '/vector/install.sh.blade.php';
-
-        $sourceDir = __DIR__ . '/../resources/views';
-        $sourceFile = $sourceDir . '/vector/install.sh.blade.php';
-
-        if (! is_file($sourceFile)) {
-            return;
-        }
-
-        $targetFileDir = dirname($targetFile);
-        if (! is_dir($targetFileDir)) {
-            mkdir($targetFileDir, 0755, true);
-        }
-
-        if (is_dir($targetFileDir)) {
-            $shouldCopy = true;
-            if (is_file($targetFile)) {
-                $shouldCopy = hash_file('sha256', $sourceFile) !== hash_file('sha256', $targetFile);
-            }
-            if ($shouldCopy) {
-                copy($sourceFile, $targetFile);
-            }
-        }
     }
 
     protected function registerRoutes()

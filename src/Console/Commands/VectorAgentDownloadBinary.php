@@ -65,7 +65,7 @@ class VectorAgentDownloadBinary extends Command
         $this->info("Downloading Vector agent binary from {$downloadUrl}");
 
         $storageDir = $binaryService->getBinaryStoragePath();
-        if (! is_dir($storageDir) && ! mkdir($storageDir, 0755, true) && ! is_dir($storageDir)) {
+        if (! is_dir($storageDir) && ! mkdir($storageDir, 0750, true) && ! is_dir($storageDir)) {
             $this->error('Failed to create binary storage directory.');
             if ($debug) {
                 $this->line('Storage directory: ' . $storageDir);

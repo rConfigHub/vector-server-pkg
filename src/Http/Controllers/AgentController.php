@@ -16,6 +16,7 @@ use Rconfig\VectorServer\Models\Agent;
 use Rconfig\VectorServer\Models\AgentLog;
 use Rconfig\VectorServer\Models\VectorAgentBootstrapToken;
 use Rconfig\VectorServer\Services\BootstrapTokenService;
+use Rconfig\VectorServer\Services\VectorAgentInstaller;
 use Rconfig\VectorServer\Services\VectorHubClient;
 use Spatie\QueryBuilder\AllowedFilter;
 use Spatie\QueryBuilder\QueryBuilder;
@@ -166,7 +167,7 @@ class AgentController extends Controller
         return $this->successResponse('Token regenerated successfully!', ['id' => $model->api_token]);
     }
 
-    public function generateBootstrapToken($id, BootstrapTokenService $tokenService)
+    public function generateBootstrapToken($id, Request $request, BootstrapTokenService $tokenService, VectorAgentInstaller $installer)
     {
         $this->authorize('agent.update');
 
@@ -183,6 +184,7 @@ class AgentController extends Controller
 
         return response()->json([
             'token' => $rawToken,
+            ...$installer->payload($request->getHttpHost(), $agent->id, $rawToken, (bool) ($agent->ssl_verify ?? true)),
             'expires_at' => $token?->expires_at ?? now()->addMinutes($ttlMinutes),
         ]);
     }
@@ -236,7 +238,7 @@ class AgentController extends Controller
         ]);
     }
 
-    public function installCommand($id, Request $request, BootstrapTokenService $tokenService)
+    public function installCommand($id, Request $request, BootstrapTokenService $tokenService, VectorAgentInstaller $installer)
     {
         $this->authorize('agent.view');
 
@@ -246,11 +248,8 @@ class AgentController extends Controller
         $tokenHash = hash('sha256', $rawToken);
         $token = VectorAgentBootstrapToken::where('token_hash', $tokenHash)->first();
 
-        $serverUrl = $request->getSchemeAndHttpHost();
-        $command = 'curl -kfsSL "'.$serverUrl.'/vector/install.sh?bootstrap_token='.$rawToken.'" | bash';
-
         return response()->json([
-            'command' => $command,
+            ...$installer->payload($request->getHttpHost(), $agent->id, $rawToken, (bool) ($agent->ssl_verify ?? true)),
             'expires_at' => $token?->expires_at ?? now()->addMinutes($ttlMinutes),
         ]);
     }
