@@ -14,6 +14,7 @@ use Rconfig\VectorServer\Models\Agent;
 use Rconfig\VectorServer\Models\AgentLog;
 use Rconfig\VectorServer\Models\VectorHubInstall;
 use Rconfig\VectorServer\Services\VectorHubClient;
+use Rconfig\VectorServer\Services\VectorHubHelperCheck;
 
 /**
  * SPA-facing Vector Hub management (RCO-744 Phase 2). Stage A is read-only:
@@ -24,9 +25,11 @@ class VectorHubManagementController extends Controller
 {
     use RespondsWithHttpStatus;
 
-    public function status(VectorHubClient $hub)
+    public function status(VectorHubClient $hub, VectorHubHelperCheck $helper)
     {
         $this->authorize('agent.view');
+
+        $helperProblems = $helper->problems();
 
         $installed = $hub->isInstalled();
         $configured = $hub->isConfigured();
@@ -75,6 +78,9 @@ class VectorHubManagementController extends Controller
             'tunnel_url' => config('vector-server.hub.tunnel_url'),
             'app_url' => config('app.url'),
             'ssh_idle_timeout' => $this->sshIdleTimeout(),
+            'helper_installed' => $helperProblems === [],
+            'helper_problems' => $helperProblems,
+            'helper_fix' => VectorHubHelperCheck::FIX,
         ]);
     }
 
@@ -179,9 +185,13 @@ class VectorHubManagementController extends Controller
      * root-owned wrapper (HubServiceActionJob); poll the result through
      * installStatus().
      */
-    public function restartService(Request $request)
+    public function restartService(Request $request, VectorHubHelperCheck $helper)
     {
         $this->authorize('agent.update');
+
+        if ($response = $this->helperMissingResponse($helper)) {
+            return $response;
+        }
 
         $record = VectorHubInstall::create([
             'status' => 'queued',
@@ -198,12 +208,18 @@ class VectorHubManagementController extends Controller
      * Horizon worker reads the source through the vector-hub group, with no
      * sudo. Poll the result through installStatus().
      */
-    public function resyncCerts(Request $request, VectorHubClient $hub)
+    public function resyncCerts(Request $request, VectorHubClient $hub, VectorHubHelperCheck $helper)
     {
         $this->authorize('agent.update');
 
         if (! $hub->isInstalled()) {
             return $this->failureResponse('Vector Hub is not installed.', 422);
+        }
+
+        // The re-sync reads the hub's certs through the vector-hub group, which
+        // the same helper command sets up, so it waits for the helper too.
+        if ($response = $this->helperMissingResponse($helper)) {
+            return $response;
         }
 
         $record = VectorHubInstall::create([
@@ -242,6 +258,18 @@ class VectorHubManagementController extends Controller
         );
     }
 
+    /**
+     * A 422 naming the problem and the fix when the root-owned helper is not
+     * ready, so an action is never queued only to fail in Horizon. Null when
+     * the helper is ready.
+     */
+    private function helperMissingResponse(VectorHubHelperCheck $helper)
+    {
+        $problems = $helper->problems();
+
+        return $problems === [] ? null : $this->failureResponse(VectorHubHelperCheck::failureMessage($problems), 422);
+    }
+
     private function onOff(bool $enabled): string
     {
         return $enabled ? 'enabled' : 'disabled';
@@ -253,9 +281,13 @@ class VectorHubManagementController extends Controller
      * Every operator flag is validated here with the same rules the wrapper
      * applies, so a bad value is a 422 here rather than a failed run.
      */
-    public function install(Request $request)
+    public function install(Request $request, VectorHubHelperCheck $helper)
     {
         $this->authorize('agent.update');
+
+        if ($response = $this->helperMissingResponse($helper)) {
+            return $response;
+        }
 
         $validated = $request->validate([
             'rconfig_url' => ['required', 'url', 'max:255', 'regex:#^https?://[A-Za-z0-9.-]+(:[0-9]{1,5})?(/[A-Za-z0-9._~/-]*)?$#'],
@@ -315,9 +347,13 @@ class VectorHubManagementController extends Controller
      * config, service account, and clear the rConfig .env keys). Runs the
      * wrapper's uninstall action through InstallVectorHubJob.
      */
-    public function uninstall(Request $request)
+    public function uninstall(Request $request, VectorHubHelperCheck $helper)
     {
         $this->authorize('agent.update');
+
+        if ($response = $this->helperMissingResponse($helper)) {
+            return $response;
+        }
 
         $install = VectorHubInstall::create([
             'status' => 'queued',

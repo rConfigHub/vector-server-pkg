@@ -44,5 +44,8 @@ return [
         // `sudo -n` to install, remove and control the hub (RCO-1794). Written
         // by rConfig's `rconfig:vector-hub-install-helper`.
         'ctl_path' => '/usr/local/libexec/rconfig/rconfig-vector-hub',
+        // Root-owned install script the wrapper runs, written next to it by
+        // the same command. VectorHubHelperCheck looks for it.
+        'install_script_path' => '/usr/local/libexec/rconfig/rconfig-vector-hub-install.sh',
     ],
 ];
