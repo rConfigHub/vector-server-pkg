@@ -7,18 +7,19 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
-use Illuminate\Support\Facades\View;
+use Illuminate\Support\Facades\Process;
 use Rconfig\VectorServer\Models\VectorHubInstall;
-use Symfony\Component\Process\Process;
+use Rconfig\VectorServer\Services\VectorHubCtl;
 
 /**
- * Runs install-hub.sh on the rConfig server (RCO-744 Phase 2, Stage B). This
- * job executes under the Horizon worker, which runs as root — the web tier
- * (apache) has no privilege to install a system service itself.
+ * Installs or removes Vector Hub on the rConfig server (RCO-744 Phase 2,
+ * Stage B; RCO-1794). Horizon runs as the web user, so the job calls the
+ * root-owned wrapper through `sudo -n`. The wrapper runs its own root-owned
+ * copy of install-hub.sh; nothing in the app folder is ever run as root.
  *
  * Safety: the operator-supplied flags arrive as a pre-validated argv list from
- * the controller and are passed to Symfony Process as discrete arguments (no
- * shell), so there is no shell-injection surface here.
+ * the controller and are passed as discrete arguments (no shell). The wrapper
+ * checks every flag again and rejects anything else.
  */
 class InstallVectorHubJob implements ShouldQueue
 {
@@ -27,54 +28,53 @@ class InstallVectorHubJob implements ShouldQueue
     /** Bounded so a hung install can't pin a worker forever. */
     public $timeout = 600;
 
-    /** @param array<int,string> $args validated install-hub.sh flag argv */
-    public function __construct(public int $installId, public array $args) {}
+    /** @var array<int,string> */
+    public const ACTIONS = ['install', 'uninstall'];
 
-    public function handle(): void
+    /**
+     * @param  array<int,string>  $args  validated install flag argv (ignored for uninstall)
+     */
+    public function __construct(public int $installId, public array $args, public string $action = 'install') {}
+
+    public function handle(VectorHubCtl $ctl): void
     {
         $install = VectorHubInstall::find($this->installId);
         if (! $install) {
             return;
         }
 
+        if (! in_array($this->action, self::ACTIONS, true)) {
+            $install->update(['status' => 'failed', 'output' => "Unsupported action: {$this->action}", 'finished_at' => now()]);
+
+            return;
+        }
+
         $install->update(['status' => 'running', 'started_at' => now(), 'output' => '']);
 
-        $scriptPath = null;
         try {
-            $scriptPath = $this->renderScript();
-
-            $buffer = '';
-            $lastFlush = microtime(true);
-            $flush = function (bool $force = false) use (&$buffer, &$lastFlush, $install) {
-                if ($buffer === '') {
-                    return;
+            // Live progress for the UI poll, saved at most every 1.5s.
+            $lastSave = microtime(true);
+            $flags = $this->action === 'install' ? $this->args : [];
+            $result = Process::timeout($this->timeout)->run(
+                $ctl->command($this->action, $flags),
+                function (string $type, string $chunk) use ($install, &$lastSave) {
+                    $install->output = (string) $install->output . $chunk;
+                    if (microtime(true) - $lastSave > 1.5) {
+                        $install->save();
+                        $lastSave = microtime(true);
+                    }
                 }
-                if ($force || microtime(true) - $lastFlush > 1.5) {
-                    $install->output = (string) $install->output . $buffer;
-                    $install->save();
-                    $buffer = '';
-                    $lastFlush = microtime(true);
-                }
-            };
+            );
 
-            $process = new Process(array_merge(['/bin/bash', $scriptPath], $this->args));
-            $process->setTimeout($this->timeout);
-            $process->run(function ($type, $chunk) use (&$buffer, $flush) {
-                $buffer .= $chunk;
-                $flush();
-            });
-            $flush(true);
+            [$serviceStatus, $statusOutput] = $ctl->status();
 
-            $serviceStatus = $this->capture(['systemctl', 'is-active', 'vector-hub']);
-            $journal = $this->capture(['journalctl', '-u', 'vector-hub', '-n', '100', '--no-pager']);
-
+            // The result holds the full output; the streamed copy was progress only.
             $install->update([
-                'status' => $process->isSuccessful() ? 'success' : 'failed',
-                'exit_code' => $process->getExitCode(),
-                'service_status' => trim($serviceStatus) ?: null,
-                'output' => (string) $install->fresh()->output
-                    . "\n\n--- systemctl is-active vector-hub ---\n" . $serviceStatus
-                    . "\n--- journalctl -u vector-hub -n 100 ---\n" . $journal,
+                'status' => $result->successful() ? 'success' : 'failed',
+                'exit_code' => $result->exitCode(),
+                'service_status' => $serviceStatus,
+                'output' => $result->output() . $result->errorOutput() . $ctl->failureHint($result)
+                    . "\n\n--- systemctl is-active vector-hub ---\n" . $statusOutput,
                 'finished_at' => now(),
             ]);
         } catch (\Throwable $e) {
@@ -83,57 +83,6 @@ class InstallVectorHubJob implements ShouldQueue
                 'output' => (string) optional($install->fresh())->output . "\n[job error] " . $e->getMessage(),
                 'finished_at' => now(),
             ]);
-        } finally {
-            if ($scriptPath && is_file($scriptPath)) {
-                @unlink($scriptPath);
-            }
-        }
-    }
-
-    /**
-     * Render the install-hub blade to a temp shell script and return its path.
-     * Mirrors VectorInstallScriptController's namespace/fallback resolution.
-     */
-    private function renderScript(): string
-    {
-        $namespacePath = resource_path('views/vendor/vector-server');
-        if (is_dir($namespacePath)) {
-            View::addNamespace('vector-server', $namespacePath);
-        }
-
-        $viewName = 'vector-server::vector.install-hub.sh';
-        if (View::exists($viewName)) {
-            $contents = View::make($viewName)->render();
-        } else {
-            $file = resource_path('views/vendor/vector-server/vector/install-hub.sh.blade.php');
-            if (! is_file($file)) {
-                throw new \RuntimeException('install-hub script view is missing.');
-            }
-            $contents = View::file($file)->render();
-        }
-
-        $dir = storage_path('app/vector-hub');
-        if (! is_dir($dir)) {
-            @mkdir($dir, 0750, true);
-        }
-        $path = $dir . '/install-run-' . $this->installId . '.sh';
-        file_put_contents($path, $contents);
-        @chmod($path, 0700);
-
-        return $path;
-    }
-
-    /** Run a read-only command, returning combined output (empty on failure). */
-    private function capture(array $cmd): string
-    {
-        try {
-            $p = new Process($cmd);
-            $p->setTimeout(20);
-            $p->run();
-
-            return $p->getOutput() . $p->getErrorOutput();
-        } catch (\Throwable $e) {
-            return '';
         }
     }
 }

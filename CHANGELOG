@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+- RCO-1794 Vector Hub privileged actions go through a root-owned wrapper. `InstallVectorHubJob` and `HubServiceActionJob` no longer run `bash` or `systemctl` themselves: they call `sudo -n /usr/local/libexec/rconfig/rconfig-vector-hub <action>` (new `VectorHubCtl` service, `vector-server.hub.ctl_path`). The install script is no longer rendered from a Blade view. Needs rConfig's `rconfig:vector-hub-install-helper` (run as root), which installs the wrapper, its sudoers rule and the web user's `vector-hub` group membership.
+- `InstallVectorHubJob` takes an explicit action (`install` or `uninstall`) as its third argument; uninstall no longer passes `--uninstall` as a flag.
+- `SyncHubCertsJob` is unchanged in logic: it now runs as the web user and reads the hub's CA cert and Laravel client cert and key through the `vector-hub` group.
+- Install API: `insecure_download` is rejected, `rconfig_url` and `tunnel_host` use the wrapper's stricter patterns, and file paths must be readable by the web user.
+- Jobs use the `Process` facade, so they can be faked in tests.
+
 ## [2.0.1] – 2026-10-09
 - Vector Access: the interactive device-access command is now `vector:access` (renamed from `vector:ssh`). This is a hard switch with no alias, so update any scripts or runbooks that call the old name. User-facing copy, the session transcript header, and the audit message are rebranded to "Vector Access"; internal identifiers (the `storage/logs/vector-ssh` path, the `vector_ssh_idle_timeout` setting, and the `live_ssh_session_logged` audit key) are unchanged.
 

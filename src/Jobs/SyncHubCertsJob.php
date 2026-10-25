@@ -13,11 +13,12 @@ use Rconfig\VectorServer\Models\VectorHubInstall;
  * Self-heal for the Laravel-side hub client certificates (RCO-744 Phase 2).
  *
  * The mTLS client cert/key + CA that Laravel presents to the hub API live
- * under storage/app/vector-hub because apache cannot read the root-owned
- * /etc/vector-hub/tls. If those copies go missing (a storage reset, a partial
- * uninstall), every Laravel->hub call fails the TLS handshake and the UI shows
- * a misleading "not responding". This job re-copies them from the hub's own
- * tls dir. It runs under the root Horizon worker — apache can't read the source.
+ * under storage/app/vector-hub. If those copies go missing (a storage reset, a
+ * partial uninstall), every Laravel->hub call fails the TLS handshake and the
+ * UI shows a misleading "not responding". This job re-copies them from the
+ * hub's own tls dir. It runs as the web user (Horizon), with no sudo: the web
+ * user is in the vector-hub group, which can read exactly these three files
+ * (RCO-1794). Restart Horizon after the group is added.
  */
 class SyncHubCertsJob implements ShouldQueue
 {

@@ -7,13 +7,15 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Process;
 use Rconfig\VectorServer\Models\VectorHubInstall;
-use Symfony\Component\Process\Process;
+use Rconfig\VectorServer\Services\VectorHubCtl;
 
 /**
- * systemctl control for the vector-hub service (RCO-744 Phase 2). Runs under
- * the root Horizon worker because apache has no privilege to manage services.
- * The action is a fixed whitelist — never operator free-text.
+ * systemctl control for the vector-hub service (RCO-744 Phase 2; RCO-1794).
+ * Horizon runs as the web user, so the job calls the root-owned wrapper
+ * through `sudo -n`. The action is a fixed whitelist, never operator free-text,
+ * and the wrapper checks it again.
  */
 class HubServiceActionJob implements ShouldQueue
 {
@@ -25,7 +27,7 @@ class HubServiceActionJob implements ShouldQueue
 
     public function __construct(public int $recordId, public string $action) {}
 
-    public function handle(): void
+    public function handle(VectorHubCtl $ctl): void
     {
         $record = VectorHubInstall::find($this->recordId);
         if (! $record) {
@@ -41,22 +43,17 @@ class HubServiceActionJob implements ShouldQueue
         $record->update(['status' => 'running', 'started_at' => now(), 'output' => '']);
 
         try {
-            $proc = new Process(['systemctl', $this->action, 'vector-hub']);
-            $proc->setTimeout($this->timeout);
-            $proc->run();
+            $result = Process::timeout($this->timeout)->run($ctl->command($this->action));
 
-            $active = new Process(['systemctl', 'is-active', 'vector-hub']);
-            $active->setTimeout(20);
-            $active->run();
-            $serviceStatus = trim($active->getOutput() . $active->getErrorOutput());
+            [$serviceStatus] = $ctl->status();
 
             $record->update([
-                'status' => $proc->isSuccessful() ? 'success' : 'failed',
-                'exit_code' => $proc->getExitCode(),
-                'service_status' => $serviceStatus ?: null,
+                'status' => $result->successful() ? 'success' : 'failed',
+                'exit_code' => $result->exitCode(),
+                'service_status' => $serviceStatus,
                 'output' => "systemctl {$this->action} vector-hub\n"
-                    . $proc->getOutput() . $proc->getErrorOutput()
-                    . "\n--- systemctl is-active vector-hub ---\n" . $serviceStatus,
+                    . $result->output() . $result->errorOutput() . $ctl->failureHint($result)
+                    . "\n--- systemctl is-active vector-hub ---\n" . ($serviceStatus ?? 'unknown'),
                 'finished_at' => now(),
             ]);
         } catch (\Throwable $e) {

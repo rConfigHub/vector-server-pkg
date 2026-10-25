@@ -175,8 +175,9 @@ class VectorHubManagementController extends Controller
     }
 
     /**
-     * Restart (or start, if stopped) the vector-hub service. Runs via the root
-     * Horizon worker; poll the result through installStatus().
+     * Restart (or start, if stopped) the vector-hub service. Runs through the
+     * root-owned wrapper (HubServiceActionJob); poll the result through
+     * installStatus().
      */
     public function restartService(Request $request)
     {
@@ -193,9 +194,9 @@ class VectorHubManagementController extends Controller
 
     /**
      * Self-heal the Laravel-side hub client certificates. Re-copies the CA +
-     * client cert/key from the hub's tls dir into storage/app/vector-hub via
-     * the root Horizon worker (apache cannot read the root-owned source). Poll
-     * the result through installStatus().
+     * client cert/key from the hub's tls dir into storage/app/vector-hub. The
+     * Horizon worker reads the source through the vector-hub group, with no
+     * sudo. Poll the result through installStatus().
      */
     public function resyncCerts(Request $request, VectorHubClient $hub)
     {
@@ -247,30 +248,40 @@ class VectorHubManagementController extends Controller
     }
 
     /**
-     * Queue an install. The install runs as root via the Horizon worker
-     * (InstallVectorHubJob); apache cannot install a system service itself.
-     * Every operator flag is validated here before it reaches that root shell.
+     * Queue an install. InstallVectorHubJob runs it through the root-owned
+     * wrapper (`sudo -n`); the web user cannot install a system service itself.
+     * Every operator flag is validated here with the same rules the wrapper
+     * applies, so a bad value is a 422 here rather than a failed run.
      */
     public function install(Request $request)
     {
         $this->authorize('agent.update');
 
         $validated = $request->validate([
-            'rconfig_url' => ['required', 'url', 'max:255'],
-            'tunnel_host' => ['required', 'string', 'max:255', 'regex:/^[A-Za-z0-9.-]+$/'],
+            'rconfig_url' => ['required', 'url', 'max:255', 'regex:#^https?://[A-Za-z0-9.-]+(:[0-9]{1,5})?(/[A-Za-z0-9._~/-]*)?$#'],
+            'tunnel_host' => ['required', 'string', 'max:253', 'regex:/^[A-Za-z0-9][A-Za-z0-9.-]{0,252}$/'],
             'auth_ca' => ['nullable', 'string', 'max:1024'],
             'tunnel_cert' => ['nullable', 'string', 'max:1024'],
             'tunnel_key' => ['nullable', 'string', 'max:1024'],
             'hub_bin' => ['nullable', 'string', 'max:1024'],
-            'insecure_download' => ['sometimes', 'boolean'],
+            // RCO-1794: removed. The binary and its checksum came over the same
+            // unverified connection, so the checksum proved nothing.
+            'insecure_download' => ['sometimes', 'declined'],
+        ], [
+            'rconfig_url.regex' => 'The rConfig URL must be a plain http(s) address: host, optional port and path, no query string or credentials.',
+            'insecure_download.declined' => 'Skipping TLS verification for the hub download is no longer supported.',
         ]);
 
         // File-path flags must be absolute, plainly-named, and actually exist.
+        // The wrapper reads them as the web user, so they must be readable here.
         foreach (['auth_ca', 'tunnel_cert', 'tunnel_key', 'hub_bin'] as $field) {
             if (! empty($validated[$field])) {
                 $path = $validated[$field];
-                if (! preg_match('#^/[A-Za-z0-9._/-]+$#', $path) || ! is_file($path)) {
-                    return $this->failureResponse("Invalid or missing file for {$field}.", 422);
+                if (! preg_match('#^/[A-Za-z0-9._/-]+$#', $path)
+                    || preg_match('#(^|/)\.{1,2}(/|$)|//|/$#', $path)
+                    || ! is_file($path)
+                    || ! is_readable($path)) {
+                    return $this->failureResponse("Invalid, missing or unreadable file for {$field}.", 422);
                 }
             }
         }
@@ -289,9 +300,6 @@ class VectorHubManagementController extends Controller
         if (! empty($validated['hub_bin'])) {
             array_push($args, '--hub-bin', $validated['hub_bin']);
         }
-        if (! empty($validated['insecure_download'])) {
-            $args[] = '--insecure-download';
-        }
 
         $install = VectorHubInstall::create([
             'status' => 'queued',
@@ -304,8 +312,8 @@ class VectorHubManagementController extends Controller
 
     /**
      * Queue a complete uninstall (stop the service, remove the binary, certs,
-     * config, service account, and clear the rConfig .env keys). Runs the same
-     * script in --uninstall mode via the root Horizon worker.
+     * config, service account, and clear the rConfig .env keys). Runs the
+     * wrapper's uninstall action through InstallVectorHubJob.
      */
     public function uninstall(Request $request)
     {
@@ -315,7 +323,7 @@ class VectorHubManagementController extends Controller
             'status' => 'queued',
             'user_id' => optional($request->user())->id,
         ]);
-        InstallVectorHubJob::dispatch($install->id, ['--uninstall']);
+        InstallVectorHubJob::dispatch($install->id, [], 'uninstall');
 
         return $this->successResponse('Vector Hub uninstall queued.', ['id' => $install->id]);
     }

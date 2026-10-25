@@ -37,7 +37,12 @@ return [
         // Installed hub binary; its presence is how the UI detects an install.
         'bin_path' => env('VECTOR_HUB_BIN_PATH', '/usr/local/bin/rconfig/activehub/vector-hub'),
         // Root-owned dir the install writes the hub's TLS material to; the
-        // client-cert self-heal (SyncHubCertsJob) re-copies from here.
+        // client-cert self-heal (SyncHubCertsJob) re-copies from here. The web
+        // user reads it through the vector-hub group.
         'tls_source_dir' => env('VECTOR_HUB_TLS_SOURCE_DIR', '/etc/vector-hub/tls'),
+        // Root-owned wrapper the Horizon worker (the web user) calls through
+        // `sudo -n` to install, remove and control the hub (RCO-1794). Written
+        // by rConfig's `rconfig:vector-hub-install-helper`.
+        'ctl_path' => '/usr/local/libexec/rconfig/rconfig-vector-hub',
     ],
 ];
