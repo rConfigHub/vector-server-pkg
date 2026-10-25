@@ -3,6 +3,7 @@
 namespace Rconfig\VectorServer\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Services\Notifications\AgentStatusNotifier;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Rconfig\VectorServer\Jobs\UpdateAgentDevicesStatusJob;
@@ -31,14 +32,15 @@ class AgentSyncController extends Controller
             return response()->json(['error' => 'Agent is disabled by admin'], 403);
         }
 
-        $wasDown = $this->agent->status == 2; // Track if agent was previously down
+        $wasDown = $this->agent->status == Agent::STATUS_DOWN; // Track if agent was previously down
+        $previousCheckInAt = $this->agent->last_check_in_at;
 
         // Use database transaction to ensure atomicity
         DB::transaction(function () use ($wasDown, $request) {
             $this->agent->last_check_in_at = now()->format('Y-m-d H:i:s');
             $this->agent->missed_checkins = 0;
             $this->agent->next_scheduled_checkin_at = now()->addSeconds($this->agent->checkin_interval)->format('Y-m-d H:i:s');
-            $this->agent->status = 1; // Set to healthy
+            $this->agent->status = Agent::STATUS_HEALTHY;
             $this->agent->reported_version = $request->input('reported_version');
             $reportedPlatform = $request->input('reported_platform');
             $this->agent->reported_platform = $reportedPlatform;
@@ -56,6 +58,11 @@ class AgentSyncController extends Controller
         // Hide sensitive data before returning
         $deviceIds = $this->agent->devices()->orderBy('id')->pluck('id')->toArray();
         $deviceChecksum = empty($deviceIds) ? '' : md5(implode(',', $deviceIds));
+
+        // Recovery notification fires after the transaction commits (RCO-1595)
+        if ($wasDown) {
+            $this->notifyAgentRecovered(count($deviceIds), $previousCheckInAt);
+        }
 
         $response = $this->agent->makeHidden(['srcip', 'api_token']);
         $response = $response->toArray();
@@ -83,6 +90,24 @@ class AgentSyncController extends Controller
                 1, // Healthy status
                 'Agent has recovered'
             ))->onQueue('rConfigDefault');
+        }
+    }
+
+    /**
+     * Raise the agent recovered notification. Guarded so an older core without
+     * the notifier, or a notification failure, never fails the agent's sync.
+     */
+    private function notifyAgentRecovered(int $deviceCount, $previousCheckInAt)
+    {
+        $notifierClass = AgentStatusNotifier::class;
+        if (! class_exists($notifierClass)) {
+            return;
+        }
+
+        try {
+            (new $notifierClass)->notifyAgentRecovered((int) $this->agent->id, $deviceCount, $previousCheckInAt);
+        } catch (\Throwable $e) {
+            \Log::error("Failed to send agent recovered notification for {$this->agent->name}: {$e->getMessage()}");
         }
     }
 

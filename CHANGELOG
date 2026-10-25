@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [2.0.5] – 2026-10-25
+- RCO-1595 rConfig now sends a notification when a Vector agent goes down and again when it recovers. Requires rConfig 8.4.1 or later.
+
 ## [2.0.4] – 2026-10-25
 - RCO-1817 **Breaking:** the Vector agent installer is now a static, verified script served from `GET /vector/agent-install.sh`, replacing the editable Blade template. Regenerate any saved or scripted install commands.
 - The old `install.sh?bootstrap_token=` URL now prints where to find the new command and exits.
