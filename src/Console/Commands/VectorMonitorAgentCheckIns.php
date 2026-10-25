@@ -2,6 +2,7 @@
 
 namespace Rconfig\VectorServer\Console\Commands;
 
+use App\Services\Notifications\AgentStatusNotifier;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
@@ -30,6 +31,7 @@ class VectorMonitorAgentCheckIns extends Command
         $this->handleDisabledAgents();
 
         $this->info('Agent monitoring completed.');
+
         return 0;
     }
 
@@ -119,11 +121,12 @@ class VectorMonitorAgentCheckIns extends Command
     protected function updateDeviceStatuses($changedAgents)
     {
         if (empty($changedAgents)) {
-            $this->line("No agents changed status - skipping device updates");
+            $this->line('No agents changed status - skipping device updates');
+
             return;
         }
 
-        $this->info("Processing device updates for " . count($changedAgents) . " agents");
+        $this->info('Processing device updates for ' . count($changedAgents) . ' agents');
 
         foreach ($changedAgents as $agent) {
             $deviceCount = $agent->devices()->count();
@@ -139,6 +142,28 @@ class VectorMonitorAgentCheckIns extends Command
             } else {
                 $this->line("Agent {$agent->name} has no devices - skipping device update");
             }
+
+            $this->notifyAgentDown($agent, $deviceCount);
+        }
+    }
+
+    /**
+     * Raise the agent down notification (RCO-1595). Runs outside the status
+     * transaction and only for agents that just transitioned, so each outage
+     * notifies once. Guarded so an older core without the notifier, or a
+     * notification failure, never breaks the monitor.
+     */
+    protected function notifyAgentDown($agent, int $deviceCount)
+    {
+        $notifierClass = AgentStatusNotifier::class;
+        if (! class_exists($notifierClass)) {
+            return;
+        }
+
+        try {
+            (new $notifierClass)->notifyAgentDown((int) $agent->id, $deviceCount);
+        } catch (\Throwable $e) {
+            $this->error("Failed to send agent down notification for {$agent->name}: {$e->getMessage()}");
         }
     }
 
