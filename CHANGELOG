@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [2.0.3] – 2026-10-25
+- RCO-1794 New `VectorHubHelperCheck` service reports whether the root-owned Vector Hub helper is ready: the wrapper and its install script exist, are owned by root and writable by root only, and sudo lets the web user run the wrapper without a password (`sudo -n -l`).
+- New config `vector-server.hub.install_script_path` (default `/usr/local/libexec/rconfig/rconfig-vector-hub-install.sh`).
+- Vector Hub status API now returns `helper_installed`, `helper_problems` and `helper_fix`.
+- Vector Hub install, uninstall, service restart and cert re-sync return a 422 naming the problem and the fix (`sudo php artisan rconfig:vector-hub-install-helper`) when the helper is not ready, instead of queuing a job that fails in Horizon.
+
 ## [2.0.2] – 2026-10-25
 - RCO-1794 Vector Hub privileged actions (install, uninstall, service control) now run through a root-owned wrapper via `sudo -n` (new `VectorHubCtl` service, `vector-server.hub.ctl_path`) instead of `bash` or `systemctl` directly. Requires running rConfig's `rconfig:vector-hub-install-helper` as root after upgrading.
 - `InstallVectorHubJob` takes an explicit `install` or `uninstall` action as its third argument.
