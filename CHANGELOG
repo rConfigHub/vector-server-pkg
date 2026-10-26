@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [2.0.6] – 2026-10-26
+- RCO-1830 Removed three agent routes that pointed at controller methods that never existed and returned a 500 when called: `POST api/agents/{id}/add-to-user`, `GET api/agents/active` and `GET api/agents/latest`. Nothing in rConfig called them.
+
 ## [2.0.5] – 2026-10-25
 - RCO-1595 rConfig now sends a notification when a Vector agent goes down and again when it recovers. Requires rConfig 8.4.1 or later.
 
