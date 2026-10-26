@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [2.0.7] – 2026-10-26
+- The message printed by the retired `install.sh?bootstrap_token=` URL now points to the Vector Agents page in rConfig, instead of Settings > Agents, to find the new install command.
+
 ## [2.0.6] – 2026-10-26
 - RCO-1830 Removed three agent routes that pointed at controller methods that never existed and returned a 500 when called: `POST api/agents/{id}/add-to-user`, `GET api/agents/active` and `GET api/agents/latest`. Nothing in rConfig called them.
 
