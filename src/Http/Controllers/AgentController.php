@@ -33,7 +33,7 @@ class AgentController extends Controller
 
         $relationships = ['roles', 'devicesLimited'];
         $query = QueryBuilder::for(Agent::class)
-            ->allowedFilters([
+            ->allowedFilters(...[
                 AllowedFilter::custom('q', new QueryFilterMultipleFields, 'id, name, email, srcip'),
                 AllowedFilter::exact('status'),
                 AllowedFilter::exact('is_admin_enabled'),
@@ -42,7 +42,7 @@ class AgentController extends Controller
             ])
             ->defaultSort('-id')
             ->allowedSorts('name', 'id', 'created_at', 'is_admin_enabled')
-            ->allowedIncludes($relationships)
+            ->allowedIncludes(...$relationships)
             ->with('roles', 'devicesLimited')
             ->filterByRole($userRole->id)
             ->paginate($request->perPage ?? 10);

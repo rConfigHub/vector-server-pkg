@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [2.0.8] – 2026-10-27
+- RCO-1848 Supports spatie/laravel-query-builder 7. The agent, agent log and agent queue lists no longer return a 500 on rConfig 8.4.1, which ships query-builder 7. Still works with query-builder 6.
+
 ## [2.0.7] – 2026-10-26
 - The message printed by the retired `install.sh?bootstrap_token=` URL now points to the Vector Agents page in rConfig, instead of Settings > Agents, to find the new install command.
 

@@ -27,7 +27,7 @@ class AgentLogController extends Controller
         }
 
         $query = QueryBuilder::for(AgentLog::class)
-            ->allowedFilters([
+            ->allowedFilters(...[
                 AllowedFilter::custom('q', new QueryFilterMultipleFields, 'message'),
                 AllowedFilter::exact('agent_id'),
                 AllowedFilter::exact('log_level'),
