@@ -26,7 +26,7 @@ class AgentQueueController extends Controller
 
         $searchCols = ['name', 'email'];
         $query = QueryBuilder::for(AgentQueue::class)
-            ->allowedFilters([
+            ->allowedFilters(...[
                 AllowedFilter::custom('q', new QueryFilterMultipleFields, 'device_id, ip_address'),
                 AllowedFilter::exact('device_id'),
                 AllowedFilter::exact('agent_id'),
@@ -242,7 +242,7 @@ class AgentQueueController extends Controller
 
         $query = QueryBuilder::for(AgentQueue::class)
             ->whereIn('id', $ids)
-            ->allowedFilters([
+            ->allowedFilters(...[
                 AllowedFilter::exact('agent_id'),
                 AllowedFilter::exact('device_id'),
             ])
