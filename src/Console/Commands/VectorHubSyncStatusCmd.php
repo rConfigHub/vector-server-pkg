@@ -3,11 +3,10 @@
 namespace Rconfig\VectorServer\Console\Commands;
 
 use Illuminate\Console\Command;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Rconfig\VectorServer\Jobs\SyncHubCertsJob;
-use Rconfig\VectorServer\Models\Agent;
 use Rconfig\VectorServer\Models\VectorHubInstall;
+use Rconfig\VectorServer\Services\LiveChannelStatusService;
 use Rconfig\VectorServer\Services\VectorHubClient;
 
 class VectorHubSyncStatusCmd extends Command
@@ -15,16 +14,20 @@ class VectorHubSyncStatusCmd extends Command
     protected $signature = 'vector:hub-sync-status';
     protected $description = 'Persist Vector Hub live-channel status (connected, RTT, last seen) onto agents';
 
-    public function handle(VectorHubClient $hub)
+    public function handle(LiveChannelStatusService $status, VectorHubClient $hub)
     {
         if (! $hub->isConfigured()) {
             return 0;
         }
 
-        $reported = $hub->agents();
-        if ($reported === null) {
-            // Hub unreachable is not proof agents dropped — keep the last
-            // observed state rather than flapping everyone to disconnected.
+        // The write logic now lives in LiveChannelStatusService so the CLI and
+        // the API share it (RCO-1605). force: true always polls the hub so this
+        // scheduled backstop never serves a cached snapshot.
+        $snapshot = $status->refresh(force: true);
+
+        if (! $snapshot['reachable']) {
+            // Hub unreachable is not proof agents dropped — refresh() kept the
+            // last observed state rather than flapping everyone to disconnected.
             // A common, recoverable cause is the Laravel client certs going
             // missing (the mTLS handshake fails and every call reads as down),
             // so try to self-heal them here before giving up for this tick.
@@ -35,30 +38,7 @@ class VectorHubSyncStatusCmd extends Command
             return 1;
         }
 
-        $connectedIds = [];
-        foreach ($reported as $status) {
-            $agentId = (int) ($status['agent_id'] ?? 0);
-            if ($agentId < 1) {
-                continue;
-            }
-            $connectedIds[] = $agentId;
-
-            Agent::where('id', $agentId)->update([
-                'live_channel_connected' => (bool) ($status['live'] ?? false),
-                'live_channel_rtt_ms' => $status['rtt_ms'] ?? null,
-                'live_channel_last_seen_at' => isset($status['last_seen'])
-                    ? Carbon::parse($status['last_seen'])
-                    : now(),
-            ]);
-        }
-
-        // The hub answered authoritatively: anything it did not report is
-        // no longer connected.
-        Agent::where('live_channel_connected', true)
-            ->whereNotIn('id', $connectedIds)
-            ->update(['live_channel_connected' => false, 'live_channel_rtt_ms' => null]);
-
-        $this->line('Synced live-channel status for ' . count($connectedIds) . ' connected agent(s).');
+        $this->line('Synced live-channel status for ' . count($snapshot['statuses']) . ' connected agent(s).');
 
         return 0;
     }

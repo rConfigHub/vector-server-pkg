@@ -13,6 +13,7 @@ use Rconfig\VectorServer\Jobs\SyncHubCertsJob;
 use Rconfig\VectorServer\Models\Agent;
 use Rconfig\VectorServer\Models\AgentLog;
 use Rconfig\VectorServer\Models\VectorHubInstall;
+use Rconfig\VectorServer\Services\LiveChannelStatusService;
 use Rconfig\VectorServer\Services\VectorHubClient;
 
 /**
@@ -171,6 +172,36 @@ class VectorHubManagementController extends Controller
                 'current_page' => $paginator->currentPage(),
                 'last_page' => $paginator->lastPage(),
             ],
+        ]);
+    }
+
+    /**
+     * Lightweight live-channel status for polling (RCO-1605). Refresh from the
+     * hub (cached ~10s, so polling is cheap) and return each connected agent's
+     * state plus whether the hub itself was reachable, so the UI can update
+     * without a page reload and show a distinct "unknown" state (rather than a
+     * misleading "disconnected") when the hub cannot be reached.
+     */
+    public function liveStatus(LiveChannelStatusService $status)
+    {
+        $this->authorize('agent.view');
+
+        $snapshot = $status->refresh();
+
+        $agents = collect($snapshot['statuses'])
+            ->filter(fn ($s) => (int) ($s['agent_id'] ?? 0) > 1) // hide the default vector-server agent (id 1)
+            ->map(fn ($s) => [
+                'id' => (int) $s['agent_id'],
+                'connected' => (bool) ($s['live'] ?? false),
+                'rtt_ms' => $s['rtt_ms'] ?? null,
+                'last_seen' => $s['last_seen'] ?? null,
+            ])
+            ->values();
+
+        return $this->successResponse('Vector Hub live status', [
+            'hub_reachable' => $snapshot['reachable'],
+            'checked_at' => $snapshot['checked_at'],
+            'agents' => $agents,
         ]);
     }
 
