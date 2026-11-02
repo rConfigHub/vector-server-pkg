@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [2.0.9] – 2026-11-02
+- RCO-1605 Vector Hub live-channel status is now refreshed from the hub when it is used, instead of relying only on the per-minute `vector:hub-sync-status` sync. A newly connected agent shows up within seconds.
+- New `LiveChannelStatusService` holds the shared refresh logic, with a 10 second cache. `vector:hub-sync-status` now uses it and always polls the hub.
+- New `GET vector-hub/agents/live-status` endpoint (`agent.view`) for polling. It returns `hub_reachable`, `checked_at` and each connected agent's `connected`, `rtt_ms` and `last_seen`, so the UI can show "unknown" rather than "disconnected" when the hub cannot be reached.
+- `vector:access` checks the hub before listing agents and explains why none are selectable: hub unreachable, no agents connected, or connected agents not admin-enabled.
+
 ## [2.0.8] – 2026-10-27
 - RCO-1848 Supports spatie/laravel-query-builder 7. The agent, agent log and agent queue lists no longer return a 500 on rConfig 8.4.1, which ships query-builder 7. Still works with query-builder 6.
 
