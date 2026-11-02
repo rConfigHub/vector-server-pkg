@@ -12,6 +12,7 @@ use function Laravel\Prompts\search;
 
 use Rconfig\VectorServer\Models\Agent;
 use Rconfig\VectorServer\Models\AgentLog;
+use Rconfig\VectorServer\Services\LiveChannelStatusService;
 use Rconfig\VectorServer\Services\SshSessionLogger;
 
 /**
@@ -200,8 +201,13 @@ class VectorSshCmd extends Command
      */
     private function pickAgent(): ?int
     {
+        // Ask the hub for live status now rather than trusting the per-minute
+        // sync, so a just-connected agent is selectable within seconds, and a
+        // flag wiped by migrate:fresh self-corrects on use (RCO-1605).
+        $snapshot = app(LiveChannelStatusService::class)->refresh();
+
         if ($this->connectedAgentOptions() === []) {
-            $this->error('No agents have a live channel connected. Enable the live channel on an agent and wait for it to connect.');
+            $this->error($this->noConnectedAgentsMessage($snapshot));
 
             return null;
         }
@@ -214,6 +220,34 @@ class VectorSshCmd extends Command
         );
 
         return $agentId !== null ? (int) $agentId : null;
+    }
+
+    /**
+     * Explain why no agent is selectable, tailored to whether the hub could be
+     * reached, so the operator knows whether to wait, admin-enable an agent, or
+     * check the hub (RCO-1605).
+     *
+     * @param  array{reachable: bool, statuses: array<int, array<string, mixed>>}  $snapshot
+     */
+    private function noConnectedAgentsMessage(array $snapshot): string
+    {
+        if (! $snapshot['reachable']) {
+            return 'Vector Hub is unreachable, so live-channel status may be stale and no agents '
+                . 'are currently marked connected. Check that the hub service is running, then retry '
+                . '(or run `php artisan vector:hub-sync-status`).';
+        }
+
+        $liveCount = count(array_filter(
+            $snapshot['statuses'],
+            fn ($s) => (bool) ($s['live'] ?? false),
+        ));
+
+        if ($liveCount === 0) {
+            return 'No agents have a live channel connected. Enable the live channel on an agent and wait for it to connect.';
+        }
+
+        return "The hub reports {$liveCount} connected agent(s), but none are admin-enabled for "
+            . 'interactive sessions. Enable the agent under Settings > Agents, then retry.';
     }
 
     /**
