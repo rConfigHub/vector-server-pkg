@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [2.0.11] – 2026-11-03
+- RCO-2020 The installer now pins the published Vector agent 2.0.1 release binary (SHA256 `1e28a22df13cfc6029992c51d1063dbbc700d75a03dbd9f460259fd39b88cb61`). The 2.0.10 installer pinned a pre-release build and refuses the published 2.0.1 binary with "not a known rConfig Vector agent release", so skip 2.0.10.
+- Installer SHA256 for this release: `9a5de109f6761358ff7d11a3a6b34e5f4246f204d8bf2ad93a3580b4674df088`.
+
 ## [2.0.10] – 2026-11-03
 - RCO-2020 Outbound source address: new nullable `agents.device_source_address` (IPv4 or IPv6), validated on agent create and update and sent to the agent in the sync response. An update that does not send the field leaves it unchanged. Loopback, link-local, unspecified, multicast and IPv4-mapped addresses are rejected, and the built-in agent (ID 1) cannot have one.
 - RCO-2020 Agents report `source_address_status` at check-in (`ok`, `missing`, `invalid`, `unset`), stored as `agents.reported_source_address_status`. Agents before 2.0.1 leave it null.

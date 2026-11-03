@@ -32,9 +32,8 @@ umask 077
 # BEGIN PINNED AGENT RELEASES
 # One line per published Linux agent release: version, then SHA256.
 # Taken from the agent release build, never from an rConfig server.
-# RCO-2020: the 2.0.1 SHA is from a local test build; replace it with the release build's SHA.
 PINNED_RELEASES="
-2.0.1 8da41e3eedc4dd12ba7c705c5c67cf6b8969791f1798d700d0d36a259a0e99fb
+2.0.1 1e28a22df13cfc6029992c51d1063dbbc700d75a03dbd9f460259fd39b88cb61
 2.0.0 16317c42dd3390b278e9fcf1bcd84715b301c7f7d1cc08595de9c750962a27ee
 1.1.4 c629244e9c5f922b5da8be206180774eeb3d0bb029a27a28bcfabf56953de5b4
 1.1.3 59e0b3bfff4e468121e6eac6e56dd744a36f0dcf2e542bd30486aca1007b4826
