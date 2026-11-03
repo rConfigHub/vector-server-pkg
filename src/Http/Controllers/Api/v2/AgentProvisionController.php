@@ -90,6 +90,10 @@ class AgentProvisionController extends Controller
                 $attributes['srcip_allowlist'] = $srcipAllowlist;
             }
 
+            if (Agent::supportsSourceAddress()) {
+                $attributes['device_source_address'] = $payload['device_source_address'] ?? null;
+            }
+
             $agent = Agent::create($attributes);
             $agent->roles()->sync($roleIds);
 
@@ -111,19 +115,32 @@ class AgentProvisionController extends Controller
             ? 'Agent provisioned successfully.'
             : 'Agent already existed; new bootstrap token issued.';
 
+        $data = [
+            'agent_id' => $agent->id,
+            'name' => $agent->name,
+            'created' => $created,
+            'install_command' => $install['command'],
+            'installer_sha256' => $install['installer_sha256'],
+            'installer_docs_url' => $install['installer_docs_url'],
+            'bootstrap_token' => $rawToken,
+            'expires_at' => $expiresAt,
+        ];
+
+        // An existing agent's address is reported, never changed, so callers can detect a mismatch (RCO-2020).
+        if (Agent::supportsSourceAddress()) {
+            $data['device_source_address'] = $agent->device_source_address;
+            $data['device_source_address_mismatch'] = $request->has('device_source_address')
+                && $agent->device_source_address !== $payload['device_source_address'];
+
+            if ($data['device_source_address_mismatch']) {
+                $message .= ' Its outbound source address differs from the one requested and was not changed.';
+            }
+        }
+
         return response()->json([
             'success' => true,
             'message' => $message,
-            'data' => [
-                'agent_id' => $agent->id,
-                'name' => $agent->name,
-                'created' => $created,
-                'install_command' => $install['command'],
-                'installer_sha256' => $install['installer_sha256'],
-                'installer_docs_url' => $install['installer_docs_url'],
-                'bootstrap_token' => $rawToken,
-                'expires_at' => $expiresAt,
-            ],
+            'data' => $data,
         ], $created ? 201 : 200);
     }
 

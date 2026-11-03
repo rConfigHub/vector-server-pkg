@@ -45,6 +45,11 @@ class AgentSyncController extends Controller
             $reportedPlatform = $request->input('reported_platform');
             $this->agent->reported_platform = $reportedPlatform;
             $this->agent->platform = $reportedPlatform;
+            // Agents before 2.0.1 don't send it, which leaves the status null (RCO-2020).
+            if (Agent::supportsSourceAddress()) {
+                $reportedStatus = $request->input('source_address_status');
+                $this->agent->reported_source_address_status = in_array($reportedStatus, Agent::SOURCE_ADDRESS_STATUSES, true) ? $reportedStatus : null;
+            }
             $this->agent->save();
 
             // If agent was down and now recovered, trigger device status recovery

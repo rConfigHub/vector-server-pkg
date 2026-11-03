@@ -5,6 +5,7 @@ namespace Rconfig\VectorServer\Http\Requests;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Str;
 use Rconfig\VectorServer\DataTransferObjects\StoreAgentDTO;
+use Rconfig\VectorServer\Rules\DeviceSourceAddress;
 use Rconfig\VectorServer\Services\AgentAccess\AgentSourceAllowlistService;
 
 class StoreAgentRequest extends FormRequest
@@ -33,6 +34,7 @@ class StoreAgentRequest extends FormRequest
                 'log_upload_rate' => 'nullable|integer|min:0',
                 'worker_count' => 'nullable|integer|min:1',
                 'max_missed_checkins' => 'nullable|integer|min:0',
+                'device_source_address' => ['nullable', new DeviceSourceAddress],
                 'roles' => 'required',
             ];
         }
@@ -55,11 +57,23 @@ class StoreAgentRequest extends FormRequest
                 'log_upload_rate' => 'nullable|integer|min:0',
                 'worker_count' => 'nullable|integer|min:1',
                 'max_missed_checkins' => 'nullable|integer|min:0',
+                'device_source_address' => ['nullable', new DeviceSourceAddress],
                 'roles' => 'required',
             ];
         }
 
         return $rules;
+    }
+
+    /**
+     * Treat a blank outbound source address as unset (RCO-2020).
+     */
+    protected function prepareForValidation(): void
+    {
+        if ($this->has('device_source_address')) {
+            $address = trim((string) $this->input('device_source_address'));
+            $this->merge(['device_source_address' => $address === '' ? null : $address]);
+        }
     }
 
     public function after(): array
@@ -80,6 +94,12 @@ class StoreAgentRequest extends FormRequest
                     'srcip' => $allowlist['normalized_input'],
                     'srcip_allowlist' => $allowlist['entries'],
                 ]);
+            },
+            // rConfig's built-in agent connects from the server itself, so the setting would be ignored (RCO-2020).
+            function ($validator) {
+                if ((int) $this->route('agent') === 1 && $this->input('device_source_address') !== null) {
+                    $validator->errors()->add('device_source_address', 'The built-in rConfig agent (ID 1) connects to devices from the rConfig server and does not use an outbound source address.');
+                }
             },
         ];
     }
@@ -107,6 +127,7 @@ class StoreAgentRequest extends FormRequest
             'log_upload_rate' => $this->log_upload_rate ?? 300,
             'worker_count' => $this->worker_count ?? 5,
             'max_missed_checkins' => $this->max_missed_checkins ?? 3,
+            'device_source_address' => $this->input('device_source_address'),
         ]);
     }
 }

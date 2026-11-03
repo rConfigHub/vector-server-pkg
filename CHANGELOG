@@ -3,6 +3,11 @@
 All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
+- RCO-2020 Outbound source address: new nullable `agents.device_source_address` (IPv4 or IPv6), validated on agent create and update and sent to the agent in the sync response. An update that does not send the field leaves it unchanged. Loopback, link-local, unspecified, multicast and IPv4-mapped addresses are rejected, and the built-in agent (ID 1) cannot have one.
+- RCO-2020 Agents report `source_address_status` at check-in (`ok`, `missing`, `invalid`, `unset`), stored as `agents.reported_source_address_status`. Agents before 2.0.1 leave it null.
+- RCO-2020 `POST /api/v2/agents/provision` accepts `device_source_address` on create and returns `device_source_address` and `device_source_address_mismatch`. An existing agent's address is never changed.
+- RCO-2020 Installer: `--instance <name>` installs one of several agents on a host (`/usr/local/bin/rconfig/agents/<name>`, templated `vectoragent@.service`, per-instance `VECTOR_AGENT_ROOT`), `--no-proxy` ignores host proxy variables, `--token-file` reads the bootstrap token from a file, and an installed agent can be updated without `--agent-id` or a token. Pins agent 2.0.1.
+- Run the migration after upgrading. Agent create, update, sync and provision keep working before it has run.
 
 ## [2.0.9] – 2026-11-02
 - RCO-1605 Vector Hub live-channel status is now refreshed from the hub when it is used, instead of relying only on the per-minute `vector:hub-sync-status` sync. A newly connected agent shows up within seconds.

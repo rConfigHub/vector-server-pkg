@@ -3,6 +3,7 @@
 namespace Rconfig\VectorServer\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Rconfig\VectorServer\Rules\DeviceSourceAddress;
 use Rconfig\VectorServer\Services\AgentAccess\AgentSourceAllowlistService;
 
 class ProvisionAgentRequest extends FormRequest
@@ -25,7 +26,19 @@ class ProvisionAgentRequest extends FormRequest
             'roles' => 'nullable|array',
             'roles.*' => 'integer|min:1',
             'bootstrap_ttl_minutes' => 'nullable|integer|min:1|max:1440',
+            'device_source_address' => ['nullable', new DeviceSourceAddress],
         ];
+    }
+
+    /**
+     * Treat a blank outbound source address as unset (RCO-2020).
+     */
+    protected function prepareForValidation(): void
+    {
+        if ($this->has('device_source_address')) {
+            $address = trim((string) $this->input('device_source_address'));
+            $this->merge(['device_source_address' => $address === '' ? null : $address]);
+        }
     }
 
     public function after(): array

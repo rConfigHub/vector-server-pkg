@@ -7,6 +7,7 @@ use App\Models\Role;
 use Database\Factories\AgentFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Schema;
 use Rconfig\VectorServer\Traits\PublishesToRabbitMQ;
 
 class Agent extends Model
@@ -15,7 +16,6 @@ class Agent extends Model
     // use PublishesToRabbitMQ,; // disabled for now until we have a use case
 
     protected $guarded = [];
-
     protected $casts = [
         'agent_debug' => 'boolean',
         'runtime_key_rotated_at' => 'datetime',
@@ -74,6 +74,19 @@ class Agent extends Model
     const ADMIN_ENABLED = 1;
 
     const ADMIN_DISABLED = 0;
+
+    /**
+     * Outbound source address statuses an agent can report at check-in (RCO-2020).
+     */
+    const SOURCE_ADDRESS_STATUSES = ['ok', 'missing', 'invalid', 'unset'];
+
+    /**
+     * Whether the outbound source address columns are migrated (RCO-2020).
+     */
+    public static function supportsSourceAddress(): bool
+    {
+        return once(fn () => Schema::hasColumn('agents', 'device_source_address'));
+    }
 
     /**
      * Check if agent is currently healthy
