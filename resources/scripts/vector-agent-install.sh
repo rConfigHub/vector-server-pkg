@@ -14,9 +14,17 @@
 # Usage:
 #   sudo bash vector-agent-install.sh --server https://rconfig.example.com \
 #       --agent-id 12 --token <bootstrap token> [--insecure-tls]
+#       [--instance <name>] [--no-proxy] [--token-file <path>]
 #
 # --insecure-tls skips TLS certificate checks, for an rConfig server with a
 # self-signed certificate. The binary is still checked against the pinned list.
+#
+# --instance installs one of several agents on this host, in its own
+# directory with its own vectoragent@<name> service (RCO-2020).
+# --no-proxy ignores http(s)_proxy variables when contacting rConfig.
+# --token-file reads the bootstrap token from a file instead of the command line.
+# Re-running on an installed agent updates the binary; --agent-id and the
+# token are then optional.
 
 set -euo pipefail
 umask 077
@@ -24,7 +32,9 @@ umask 077
 # BEGIN PINNED AGENT RELEASES
 # One line per published Linux agent release: version, then SHA256.
 # Taken from the agent release build, never from an rConfig server.
+# RCO-2020: the 2.0.1 SHA is from a local test build; replace it with the release build's SHA.
 PINNED_RELEASES="
+2.0.1 8da41e3eedc4dd12ba7c705c5c67cf6b8969791f1798d700d0d36a259a0e99fb
 2.0.0 16317c42dd3390b278e9fcf1bcd84715b301c7f7d1cc08595de9c750962a27ee
 1.1.4 c629244e9c5f922b5da8be206180774eeb3d0bb029a27a28bcfabf56953de5b4
 1.1.3 59e0b3bfff4e468121e6eac6e56dd744a36f0dcf2e542bd30486aca1007b4826
@@ -35,11 +45,6 @@ PINNED_RELEASES="
 
 INSTALL_ROOT="${VECTOR_AGENT_INSTALL_ROOT:-}"
 BASE_DIR="${INSTALL_ROOT}/usr/local/bin/rconfig"
-ACTIVE_DIR="${BASE_DIR}/activeagent"
-DATA_DIR="${BASE_DIR}/data"
-BIN_PATH="${ACTIVE_DIR}/vectoragent"
-ENV_PATH="${ACTIVE_DIR}/.env"
-UNIT_PATH="${INSTALL_ROOT}/etc/systemd/system/vectoragent.service"
 
 fail() {
     printf 'Error: %s\n' "$1" >&2
@@ -47,13 +52,16 @@ fail() {
 }
 
 usage() {
-    printf 'Usage: sudo bash %s --server https://<rconfig server> --agent-id <id> --token <bootstrap token> [--insecure-tls]\n' "$0"
+    printf 'Usage: sudo bash %s --server https://<rconfig server> --agent-id <id> --token <bootstrap token> [--insecure-tls] [--instance <name>] [--no-proxy] [--token-file <path>]\n' "$0"
 }
 
 SERVER_URL=""
 AGENT_ID=""
 BOOTSTRAP_TOKEN=""
+TOKEN_FILE=""
+INSTANCE=""
 INSECURE_TLS=0
+NO_PROXY=0
 
 while [ "$#" -gt 0 ]; do
     case "$1" in
@@ -72,8 +80,22 @@ while [ "$#" -gt 0 ]; do
             BOOTSTRAP_TOKEN="$2"
             shift 2
             ;;
+        --token-file)
+            [ "$#" -ge 2 ] || fail "--token-file needs a value."
+            TOKEN_FILE="$2"
+            shift 2
+            ;;
+        --instance)
+            [ "$#" -ge 2 ] && [ -n "$2" ] || fail "--instance needs a value."
+            INSTANCE="$2"
+            shift 2
+            ;;
         --insecure-tls)
             INSECURE_TLS=1
+            shift
+            ;;
+        --no-proxy)
+            NO_PROXY=1
             shift
             ;;
         -h | --help)
@@ -90,8 +112,35 @@ done
 SERVER_URL="${SERVER_URL%/}"
 SERVER_URL_PATTERN='^https://(\[[0-9A-Fa-f:.]+\]|[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?)(:[0-9]{1,5})?$'
 [[ "$SERVER_URL" =~ $SERVER_URL_PATTERN ]] || fail "--server must be https://<host> or https://<host>:<port>, with no path."
-[[ "$AGENT_ID" =~ ^[1-9][0-9]{0,9}$ ]] || fail "--agent-id must be a whole number."
-[[ "$BOOTSTRAP_TOKEN" =~ ^[A-Za-z0-9]{32,128}$ ]] || fail "--token is not a valid bootstrap token."
+
+if [ -n "$TOKEN_FILE" ]; then
+    [ -z "$BOOTSTRAP_TOKEN" ] || fail "Use --token or --token-file, not both."
+    [ -f "$TOKEN_FILE" ] && [ -r "$TOKEN_FILE" ] || fail "--token-file ${TOKEN_FILE} cannot be read."
+    BOOTSTRAP_TOKEN="$(tr -d '[:space:]' <"$TOKEN_FILE")"
+fi
+
+if [ -n "$INSTANCE" ]; then
+    [[ "$INSTANCE" =~ ^[a-z0-9][a-z0-9_-]{0,31}$ ]] || fail "--instance must be 1-32 lowercase letters, digits, - or _, starting with a letter or digit."
+    ACTIVE_DIR="${BASE_DIR}/agents/${INSTANCE}"
+    DATA_DIR="${ACTIVE_DIR}/data"
+    SERVICE="vectoragent@${INSTANCE}"
+    UNIT_PATH="${INSTALL_ROOT}/etc/systemd/system/vectoragent@.service"
+else
+    ACTIVE_DIR="${BASE_DIR}/activeagent"
+    DATA_DIR="${BASE_DIR}/data"
+    SERVICE="vectoragent"
+    UNIT_PATH="${INSTALL_ROOT}/etc/systemd/system/vectoragent.service"
+fi
+BIN_PATH="${ACTIVE_DIR}/vectoragent"
+ENV_PATH="${ACTIVE_DIR}/.env"
+
+# An installed agent keeps its .env, so only a new install needs the agent ID and token.
+if [ ! -f "$ENV_PATH" ] || [ -n "$AGENT_ID" ]; then
+    [[ "$AGENT_ID" =~ ^[1-9][0-9]{0,9}$ ]] || fail "--agent-id must be a whole number."
+fi
+if [ ! -f "$ENV_PATH" ] || [ -n "$BOOTSTRAP_TOKEN" ]; then
+    [[ "$BOOTSTRAP_TOKEN" =~ ^[A-Za-z0-9]{32,128}$ ]] || fail "--token is not a valid bootstrap token."
+fi
 
 [ "$(id -u)" -eq 0 ] || fail "Run this installer as root, for example with sudo."
 
@@ -105,6 +154,9 @@ if [ "$INSECURE_TLS" -eq 1 ]; then
     CURL_OPTS+=(-k)
     SSL_VERIFY=false
     echo "Warning: TLS certificate checks are off (--insecure-tls)." >&2
+fi
+if [ "$NO_PROXY" -eq 1 ]; then
+    CURL_OPTS+=(--noproxy '*')
 fi
 
 TMP_DIR="$(mktemp -d)"
@@ -205,34 +257,55 @@ setup_systemd_service() {
 
     if [ ! -f "$UNIT_PATH" ]; then
         mkdir -p "$(dirname "$UNIT_PATH")"
-        {
-            echo "[Unit]"
-            echo "Description=Vector Agent Service"
-            echo "After=network.target"
-            echo ""
-            echo "[Service]"
-            echo "ExecStart=${BIN_PATH}"
-            echo "Restart=always"
-            echo "User=root"
-            echo "Group=root"
-            echo "EnvironmentFile=${ENV_PATH}"
-            echo ""
-            echo "[Install]"
-            echo "WantedBy=multi-user.target"
-        } >"$UNIT_PATH"
+        if [ -n "$INSTANCE" ]; then
+            # One templated unit serves every instance; %i is the instance name.
+            {
+                echo "[Unit]"
+                echo "Description=Vector Agent Service (%i)"
+                echo "After=network.target"
+                echo ""
+                echo "[Service]"
+                echo "ExecStart=${BASE_DIR}/agents/%i/vectoragent"
+                echo "WorkingDirectory=${BASE_DIR}/agents/%i"
+                echo "Environment=VECTOR_AGENT_ROOT=${BASE_DIR}/agents/%i"
+                echo "EnvironmentFile=${BASE_DIR}/agents/%i/.env"
+                echo "Restart=always"
+                echo "User=root"
+                echo "Group=root"
+                echo ""
+                echo "[Install]"
+                echo "WantedBy=multi-user.target"
+            } >"$UNIT_PATH"
+        else
+            {
+                echo "[Unit]"
+                echo "Description=Vector Agent Service"
+                echo "After=network.target"
+                echo ""
+                echo "[Service]"
+                echo "ExecStart=${BIN_PATH}"
+                echo "Restart=always"
+                echo "User=root"
+                echo "Group=root"
+                echo "EnvironmentFile=${ENV_PATH}"
+                echo ""
+                echo "[Install]"
+                echo "WantedBy=multi-user.target"
+            } >"$UNIT_PATH"
+        fi
         chmod 644 "$UNIT_PATH"
     fi
 
     systemctl daemon-reload || true
-    systemctl enable vectoragent || true
+    systemctl enable "$SERVICE" || true
 
     if [ "$UPDATED_BINARY" -eq 1 ]; then
-        systemctl restart vectoragent || true
+        systemctl restart "$SERVICE" || true
     else
-        systemctl start vectoragent || true
+        systemctl start "$SERVICE" || true
     fi
 
-    systemctl status vectoragent --no-pager || true
+    systemctl status "$SERVICE" --no-pager || true
 }
 
 setup_systemd_service

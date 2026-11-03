@@ -25,6 +25,7 @@ final class StoreAgentDTO extends DtoBase
     public int $log_upload_rate;
     public int $worker_count;
     public ?int $max_missed_checkins;
+    public ?string $device_source_address;
 
     public function __construct(array $parameters = [])
     {
@@ -45,5 +46,6 @@ final class StoreAgentDTO extends DtoBase
         $this->log_upload_rate = $parameters['log_upload_rate'] ?? 300;
         $this->worker_count = $parameters['worker_count'] ?? 5;
         $this->max_missed_checkins = $parameters['max_missed_checkins'] ?? null;
+        $this->device_source_address = $parameters['device_source_address'] ?? null;
     }
 }

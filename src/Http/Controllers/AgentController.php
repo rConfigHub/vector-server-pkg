@@ -61,6 +61,9 @@ class AgentController extends Controller
         if (! Schema::hasColumn('agents', 'srcip_allowlist')) {
             unset($payload['srcip_allowlist']);
         }
+        if (! Agent::supportsSourceAddress()) {
+            unset($payload['device_source_address']);
+        }
 
         $model = Agent::create($payload);
         $model->roles()->sync($roles);
@@ -100,6 +103,10 @@ class AgentController extends Controller
         $payload = $request->toDTO()->toArray();
         if (! Schema::hasColumn('agents', 'srcip_allowlist')) {
             unset($payload['srcip_allowlist']);
+        }
+        // Only change the address when the caller sent it (RCO-2020).
+        if (! Agent::supportsSourceAddress() || ! $request->has('device_source_address')) {
+            unset($payload['device_source_address']);
         }
 
         $model = Agent::find($id);
