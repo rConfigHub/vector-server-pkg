@@ -35,7 +35,11 @@ class SyncHubCertsJob implements ShouldQueue
         'laravel-client.key' => ['vector-server.hub.client_key', 0640],
     ];
 
-    public function __construct(public int $recordId) {}
+    public function __construct(public int $recordId)
+    {
+        // RCO-2025: route to a served queue; the default "default" queue has no Horizon worker.
+        $this->onQueue('HighPriorityQueue');
+    }
 
     public function handle(): void
     {

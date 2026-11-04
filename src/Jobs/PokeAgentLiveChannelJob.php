@@ -22,7 +22,11 @@ class PokeAgentLiveChannelJob implements ShouldQueue
 
     public $timeout = 15;
 
-    public function __construct(public int $agentId) {}
+    public function __construct(public int $agentId)
+    {
+        // RCO-2025: route to a served queue; the default "default" queue has no Horizon worker.
+        $this->onQueue('HighPriorityQueue');
+    }
 
     public function handle(VectorHubClient $hub): void
     {

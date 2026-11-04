@@ -25,7 +25,11 @@ class HubServiceActionJob implements ShouldQueue
 
     private const ALLOWED = ['start', 'restart', 'stop'];
 
-    public function __construct(public int $recordId, public string $action) {}
+    public function __construct(public int $recordId, public string $action)
+    {
+        // RCO-2025: route to a served queue; the default "default" queue has no Horizon worker.
+        $this->onQueue('HighPriorityQueue');
+    }
 
     public function handle(VectorHubCtl $ctl): void
     {
