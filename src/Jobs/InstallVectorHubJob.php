@@ -34,7 +34,14 @@ class InstallVectorHubJob implements ShouldQueue
     /**
      * @param  array<int,string>  $args  validated install flag argv (ignored for uninstall)
      */
-    public function __construct(public int $installId, public array $args, public string $action = 'install') {}
+    public function __construct(public int $installId, public array $args, public string $action = 'install')
+    {
+        // RCO-2025: pin to a queue a Horizon supervisor actually serves. With no explicit
+        // queue the job lands on "default", which no rConfig Horizon worker reads, so the
+        // hub install sits at "Queued" forever. HighPriorityQueue is served by HorizonOne,
+        // whose timeout comfortably exceeds this job's 600s.
+        $this->onQueue('HighPriorityQueue');
+    }
 
     public function handle(VectorHubCtl $ctl): void
     {

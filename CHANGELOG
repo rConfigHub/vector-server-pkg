@@ -2,7 +2,8 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased]
+## [2.0.12] – 2026-11-04
+- RCO-2025 Vector Hub jobs (install and uninstall, service restart, certificate re-sync, live-channel poke) now run on the `HighPriorityQueue` instead of Laravel's default queue. No rConfig Horizon supervisor reads the `default` queue, so these jobs previously sat at "Queued" and never ran on servers without `REDIS_QUEUE` set, which blocked installing, restarting and re-syncing Vector Hub from the UI.
 
 ## [2.0.11] – 2026-11-03
 - RCO-2020 The installer now pins the published Vector agent 2.0.1 release binary (SHA256 `1e28a22df13cfc6029992c51d1063dbbc700d75a03dbd9f460259fd39b88cb61`). The 2.0.10 installer pinned a pre-release build and refuses the published 2.0.1 binary with "not a known rConfig Vector agent release", so skip 2.0.10.
