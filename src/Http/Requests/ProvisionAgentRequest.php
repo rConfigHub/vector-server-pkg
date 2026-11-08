@@ -3,14 +3,28 @@
 namespace Rconfig\VectorServer\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Rconfig\VectorServer\Models\Agent;
 use Rconfig\VectorServer\Rules\DeviceSourceAddress;
 use Rconfig\VectorServer\Services\AgentAccess\AgentSourceAllowlistService;
 
 class ProvisionAgentRequest extends FormRequest
 {
+    /**
+     * The token owner needs agent.update to re-issue a token for an existing agent, otherwise agent.create (RCO-2024).
+     * The token's agents.write ability is checked by the route middleware.
+     */
     public function authorize(): bool
     {
-        return true;
+        $user = $this->user();
+
+        if ($user === null) {
+            return false;
+        }
+
+        $name = $this->input('name');
+        $agentExists = is_string($name) && $name !== '' && Agent::where('name', $name)->exists();
+
+        return $user->can($agentExists ? 'agent.update' : 'agent.create');
     }
 
     public function rules(): array
