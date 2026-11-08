@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased]
+## [2.0.13] – 2026-11-08
 - RCO-2024 `POST /api/v2/agents/provision` now needs a REST API token with the `agents.write` ability (added in rConfig V8.4.2), and the token owner needs `agent.create` to create an agent or `agent.update` to issue a new install command for an existing one. Before, any active token could provision agents. **Upgrade action:** existing provisioning tokens don't have `agents.write` and token abilities can't be edited, so create a new token with **Provision Vector agents** ticked and swap it into Ansible, Terraform or CI runbooks, or they get `403`.
 
 ## [2.0.12] – 2026-11-04
