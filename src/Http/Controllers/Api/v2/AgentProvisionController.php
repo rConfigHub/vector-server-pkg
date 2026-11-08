@@ -60,8 +60,11 @@ class AgentProvisionController extends Controller
             }
         }
 
-        [$agent, $created] = DB::transaction(function () use ($payload, $roleIds, $srcip, $srcipAllowlist) {
+        [$agent, $created] = DB::transaction(function () use ($request, $payload, $roleIds, $srcip, $srcipAllowlist) {
             $existing = Agent::where('name', $payload['name'])->first();
+
+            // Re-checked here against the agent actually found, so a name created after authorize() can't skip agent.update (RCO-2024).
+            abort_unless($request->user()->can($existing !== null ? 'agent.update' : 'agent.create'), 403, 'This action is unauthorized.');
 
             if ($existing !== null) {
                 return [$existing, false];
