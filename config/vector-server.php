@@ -47,5 +47,15 @@ return [
         // Root-owned install script the wrapper runs, written next to it by
         // the same command. VectorHubHelperCheck looks for it.
         'install_script_path' => '/usr/local/libexec/rconfig/rconfig-vector-hub-install.sh',
+        // How the web user controls the hub (RCO-1738). 'sudo' calls the
+        // wrapper above (rConfig V8). 'systemd' calls systemctl on the unit
+        // below through rConfig's polkit rule, and leaves install and
+        // uninstall to `php artisan rconfig:vector-hub` run as root (rConfig
+        // V9, where Horizon runs with NoNewPrivileges and sudo cannot work).
+        // 'auto' picks systemd when rConfig V9's Bosun units are installed.
+        'control' => env('VECTOR_HUB_CONTROL', 'auto'),
+        // The hub's systemd unit in systemd mode. Named rconfig-* so the
+        // polkit rule covers it.
+        'unit' => env('VECTOR_HUB_UNIT', 'rconfig-vector-hub.service'),
     ],
 ];

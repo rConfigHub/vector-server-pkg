@@ -56,6 +56,19 @@ class InstallVectorHubJob implements ShouldQueue
             return;
         }
 
+        // RCO-1738: under rConfig V9 Horizon cannot gain root, so install and
+        // uninstall run on the server. A job queued before an upgrade lands here.
+        if ($ctl->isRootOnly($this->action)) {
+            $install->update([
+                'status' => 'failed',
+                'output' => "Vector Hub {$this->action} needs root and cannot run from the web interface on this server.\nOn the server, run: "
+                    . $ctl->rootCommand($this->action, $this->action === 'install' ? $this->args : []),
+                'finished_at' => now(),
+            ]);
+
+            return;
+        }
+
         $install->update(['status' => 'running', 'started_at' => now(), 'output' => '']);
 
         try {
@@ -81,7 +94,7 @@ class InstallVectorHubJob implements ShouldQueue
                 'exit_code' => $result->exitCode(),
                 'service_status' => $serviceStatus,
                 'output' => $result->output() . $result->errorOutput() . $ctl->failureHint($result)
-                    . "\n\n--- systemctl is-active vector-hub ---\n" . $statusOutput,
+                    . "\n\n--- systemctl is-active {$ctl->serviceLabel()} ---\n" . $statusOutput,
                 'finished_at' => now(),
             ]);
         } catch (\Throwable $e) {

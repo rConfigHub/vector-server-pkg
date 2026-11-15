@@ -12,10 +12,11 @@ use Rconfig\VectorServer\Models\VectorHubInstall;
 use Rconfig\VectorServer\Services\VectorHubCtl;
 
 /**
- * systemctl control for the vector-hub service (RCO-744 Phase 2; RCO-1794).
- * Horizon runs as the web user, so the job calls the root-owned wrapper
- * through `sudo -n`. The action is a fixed whitelist, never operator free-text,
- * and the wrapper checks it again.
+ * systemctl control for the Vector Hub service (RCO-744 Phase 2; RCO-1794).
+ * Horizon runs as the web user, so the job goes through VectorHubCtl: the
+ * root-owned wrapper via `sudo -n` on rConfig V8, or systemctl via polkit on
+ * rConfig V9 (RCO-1738). The action is a fixed whitelist, never operator
+ * free-text.
  */
 class HubServiceActionJob implements ShouldQueue
 {
@@ -55,9 +56,9 @@ class HubServiceActionJob implements ShouldQueue
                 'status' => $result->successful() ? 'success' : 'failed',
                 'exit_code' => $result->exitCode(),
                 'service_status' => $serviceStatus,
-                'output' => "systemctl {$this->action} vector-hub\n"
+                'output' => "systemctl {$this->action} {$ctl->serviceLabel()}\n"
                     . $result->output() . $result->errorOutput() . $ctl->failureHint($result)
-                    . "\n--- systemctl is-active vector-hub ---\n" . ($serviceStatus ?? 'unknown'),
+                    . "\n--- systemctl is-active {$ctl->serviceLabel()} ---\n" . ($serviceStatus ?? 'unknown'),
                 'finished_at' => now(),
             ]);
         } catch (\Throwable $e) {

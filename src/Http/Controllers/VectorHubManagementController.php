@@ -15,6 +15,7 @@ use Rconfig\VectorServer\Models\AgentLog;
 use Rconfig\VectorServer\Models\VectorHubInstall;
 use Rconfig\VectorServer\Services\LiveChannelStatusService;
 use Rconfig\VectorServer\Services\VectorHubClient;
+use Rconfig\VectorServer\Services\VectorHubCtl;
 use Rconfig\VectorServer\Services\VectorHubHelperCheck;
 
 /**
@@ -26,7 +27,7 @@ class VectorHubManagementController extends Controller
 {
     use RespondsWithHttpStatus;
 
-    public function status(VectorHubClient $hub, VectorHubHelperCheck $helper)
+    public function status(VectorHubClient $hub, VectorHubHelperCheck $helper, VectorHubCtl $ctl)
     {
         $this->authorize('agent.view');
 
@@ -81,7 +82,12 @@ class VectorHubManagementController extends Controller
             'ssh_idle_timeout' => $this->sshIdleTimeout(),
             'helper_installed' => $helperProblems === [],
             'helper_problems' => $helperProblems,
-            'helper_fix' => VectorHubHelperCheck::FIX,
+            'helper_fix' => $ctl->usesSystemd() ? 'On the server, run: ' . $ctl->rootCommand('upgrade') : VectorHubHelperCheck::FIX,
+            // RCO-1738: 'systemd' on rConfig V9. Install and uninstall then run
+            // on the server; the UI shows the root command instead of queuing.
+            'control_mode' => $ctl->mode(),
+            'install_command' => $ctl->usesSystemd() ? $ctl->rootCommand('install') : null,
+            'uninstall_command' => $ctl->usesSystemd() ? $ctl->rootCommand('uninstall') : null,
         ]);
     }
 
@@ -298,7 +304,24 @@ class VectorHubManagementController extends Controller
     {
         $problems = $helper->problems();
 
-        return $problems === [] ? null : $this->failureResponse(VectorHubHelperCheck::failureMessage($problems), 422);
+        return $problems === [] ? null : $this->failureResponse($helper->failureMessageFor($problems), 422);
+    }
+
+    /**
+     * A 422 telling the operator to run a root-only action on the server, with
+     * the exact command (RCO-1738). `root_command` lets the UI show it to copy.
+     *
+     * @param  array<int,string>  $flags
+     */
+    private function rootStepResponse(VectorHubCtl $ctl, string $action, array $flags = [])
+    {
+        $command = $ctl->rootCommand($action, $flags);
+
+        return response()->json([
+            'success' => false,
+            'message' => "Vector Hub {$action} needs root on this server, so it is not run from the web interface. On the server, run: {$command}",
+            'root_command' => $command,
+        ], 422);
     }
 
     private function onOff(bool $enabled): string
@@ -312,11 +335,13 @@ class VectorHubManagementController extends Controller
      * Every operator flag is validated here with the same rules the wrapper
      * applies, so a bad value is a 422 here rather than a failed run.
      */
-    public function install(Request $request, VectorHubHelperCheck $helper)
+    public function install(Request $request, VectorHubHelperCheck $helper, VectorHubCtl $ctl)
     {
         $this->authorize('agent.update');
 
-        if ($response = $this->helperMissingResponse($helper)) {
+        // RCO-1738: on rConfig V9 the install needs root, so it is not queued.
+        // The flags are still validated below and returned as the command to run.
+        if (! $ctl->isRootOnly('install') && ($response = $this->helperMissingResponse($helper))) {
             return $response;
         }
 
@@ -364,6 +389,10 @@ class VectorHubManagementController extends Controller
             array_push($args, '--hub-bin', $validated['hub_bin']);
         }
 
+        if ($ctl->isRootOnly('install')) {
+            return $this->rootStepResponse($ctl, 'install', $args);
+        }
+
         $install = VectorHubInstall::create([
             'status' => 'queued',
             'user_id' => optional($request->user())->id,
@@ -378,9 +407,13 @@ class VectorHubManagementController extends Controller
      * config, service account, and clear the rConfig .env keys). Runs the
      * wrapper's uninstall action through InstallVectorHubJob.
      */
-    public function uninstall(Request $request, VectorHubHelperCheck $helper)
+    public function uninstall(Request $request, VectorHubHelperCheck $helper, VectorHubCtl $ctl)
     {
         $this->authorize('agent.update');
+
+        if ($ctl->isRootOnly('uninstall')) {
+            return $this->rootStepResponse($ctl, 'uninstall');
+        }
 
         if ($response = $this->helperMissingResponse($helper)) {
             return $response;
